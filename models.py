@@ -1,61 +1,45 @@
-# This file is part of the OpenProtein project.
-#
-# @author Jeppe Hallgren
-#
-# For license information, please see the LICENSE file in the root directory.
+# tester
 
-import torch.autograd as autograd
 import torch.nn as nn
-from util import *
-import torch.nn.utils.rnn as rnn_utils
-import time
+import torch.nn.functional as F
 import numpy as np
-import openprotein
+#from util import embed, calculate_dihedral_angles_over_minibatch
 
-# seed random generator for reproducibility
-torch.manual_seed(1)
+class EncoderNet(nn.Module):
+    def __init__(self, ENCODING_LSTM_OUTPUT=100, CODE_LAYER_SIZE=50, VOCAB_SIZE=21, ENCODER_LSTM_NUM_LAYERS=2, device ):
+        super(EncoderNet, self).__init__()
+        #encoding
+        self.LSTM_NUM_LAYERS = ENCODER_LSTM_NUM_LAYERS
+        self.ENCODING_LSTM_OUTPUT = ENCODING_LSTM_OUTPUT
+        self.encoder_seq = nn.LSTM(input_size=VOCAB_SIZE, hidden_size= self.ENCODING_LSTM_OUTPUT,num_layers=self.LSTM_NUM_LAYERS,bidirectional=True, batch_first=False)
+        self.encoder_tert = nn.LSTM(input_size=VOCAB_SIZE, hidden_size= self.ENCODING_LSTM_OUTPUT,num_layers=self.LSTM_NUM_LAYERS,bidirectional=True, batch_first=False)
+        self.batchnorm = nn.BatchNorm1d(ENCODING_LSTM_OUTPUT * 4) # as bidirectional LSTMS, 2 of them. 
+        self.dense1_enc = nn.Linear(in_features=(ENCODING_LSTM_OUTPUT* 4 ), out_features=CODE_LAYER_SIZE ) # * self.LSTM_NUM_LAYERS because it is bidirectional
+        self.dense2_enc = nn.Linear(in_features=CODE_LAYER_SIZE, out_features=CODE_LAYER_SIZE )
+        self.device = device
 
-# sample model borrowed from
-# https://github.com/lblaabjerg/Master/blob/master/Models%20and%20processed%20data/ProteinNet_LSTM_500.py
-class ExampleModel(openprotein.BaseModel):
-    def __init__(self, embedding_size, minibatch_size, use_gpu):
-        super(ExampleModel, self).__init__(use_gpu, embedding_size)
+    def forward(self, seq, coords):
+        packed_input_sequences = embed(seq, self.device)
+        # dealing with the sequences: 
+        packed_output, hidden = self.encoder_seq(packed_input_sequences)
+        out_padded, lengths = torch.nn.utils.rnn.pad_packed_sequence(packed_output)
+        # batch comes second here? so shape[1]
+        seq_hidden_means = torch.mean(out_padded[torch.arange(seq.shape[1]), lengths], dim=1)
 
-        self.hidden_size = 25
-        self.num_lstm_layers = 2
-        self.mixture_size = 500
-        self.bi_lstm = nn.LSTM(self.get_embedding_size(), self.hidden_size,
-                               num_layers=self.num_lstm_layers, bidirectional=True, bias=True)
-        self.hidden_to_labels = nn.Linear(self.hidden_size * 2, self.mixture_size, bias=True) # * 2 for bidirectional
-        self.init_hidden(minibatch_size)
-        self.softmax_to_angle = soft_to_angle(self.mixture_size)
-        self.soft = nn.LogSoftmax(2)
-        self.bn = nn.BatchNorm1d(self.mixture_size)
-
-    def init_hidden(self, minibatch_size):
-        # number of layers (* 2 since bidirectional), minibatch_size, hidden size
-        initial_hidden_state = torch.zeros(self.num_lstm_layers * 2, minibatch_size, self.hidden_size)
-        initial_cell_state = torch.zeros(self.num_lstm_layers * 2, minibatch_size, self.hidden_size)
-        if self.use_gpu:
-            initial_hidden_state = initial_hidden_state.cuda()
-            initial_cell_state = initial_cell_state.cuda()
-        self.hidden_layer = (autograd.Variable(initial_hidden_state),
-                             autograd.Variable(initial_cell_state))
-
-    def _get_network_emissions(self, original_aa_string):
-        packed_input_sequences = self.embed(original_aa_string)
-        minibatch_size = int(packed_input_sequences[1][0])
-        self.init_hidden(minibatch_size)
-        (data, bi_lstm_batches), self.hidden_layer = self.bi_lstm(packed_input_sequences, self.hidden_layer)
-        emissions_padded, batch_sizes = torch.nn.utils.rnn.pad_packed_sequence(
-            torch.nn.utils.rnn.PackedSequence(self.hidden_to_labels(data), bi_lstm_batches))
-        x = emissions_padded.transpose(0,1).transpose(1,2) # minibatch_size, self.mixture_size, -1
-        x = self.bn(x)
-        x = x.transpose(1,2) #(minibatch_size, -1, self.mixture_size)
-        p = torch.exp(self.soft(x))
-        output_angles = self.softmax_to_angle(p).transpose(0,1) # max size, minibatch size, 3 (angels)
-        backbone_atoms_padded, batch_sizes_backbone = get_backbone_positions_from_angular_prediction(output_angles, batch_sizes, self.use_gpu)
-        return output_angles, backbone_atoms_padded, batch_sizes
+        #Now dealing with the tertiary structure!! Convert coords to dihedral angles. 
+        # None here is because this is not padded and I dont want to give it a batch size. 
+        packed_input_tert = calculate_dihedral_angles_over_minibatch(tert, None, self.device, is_padded=False) 
+        # dealing with the sequences: 
+        packed_output, hidden = self.encoder_tert(packed_input_tert)
+        out_padded, lengths = torch.nn.utils.rnn.pad_packed_sequence(packed_output)
+        # batch comes second here? so shape[1]
+        tert_hidden_means = torch.mean(out_padded[torch.arange(seq.shape[1]), lengths], dim=1)
+        # get mean of all hidden states. will then concat this with the tertiary and put through dense.        
+        res = torch.cat( (seq_hidden_means, tert_hidden_means), dim=1)        
+        res = self.batchnorm(res)
+        res = self.dense2_enc(F.elu(self.dense1_enc(res))) # used to have F.tanh here!
+        # out_padded are the dihedral angles for the structure!! 
+        return res, out_padded
 
 class soft_to_angle(nn.Module):
     def __init__(self, mixture_size):
@@ -88,47 +72,53 @@ class soft_to_angle(nn.Module):
 
         return torch.cat((phi, psi, omega), 2)
 
+class DecoderNet(nn.Module):
+    def __init__(self, device, DECODING_LSTM_OUTPUT=100, CODE_LAYER_SIZE=50, VOCAB_SIZE=21, DECODER_LSTM_NUM_LAYERS=1 ):
+        super(DecoderNet, self).__init__()
+        #decode it should be the inverse of the encoder!
+        #self.dense1_predecode = nn.Linear(in_features=(CODE_LAYER_SIZE), out_features=50 )
+        #self.dense1_pre_dec = nn.Linear(in_features=(CODE_LAYER_SIZE), out_features=200 )
+        self.LSTM_OUTPUT_SIZE = DECODING_LSTM_OUTPUT
+        self.LSTM_NUM_LAYERS=DECODER_LSTM_NUM_LAYERS
+        self.CODE_LAYER_SIZE=CODE_LAYER_SIZE
+        self.VOCAB_SIZE=VOCAB_SIZE
+        self.decoder = nn.LSTM(input_size=CODE_LAYER_SIZE,bidirectional=True, 
+                               hidden_size=self.LSTM_OUTPUT_SIZE,num_layers=self.LSTM_NUM_LAYERS, batch_first=True)
+        
+        self.mixture_size = 500
+        self.hidden_to_labels = nn.Linear(self.LSTM_OUTPUT_SIZE * 2, self.mixture_size, bias=True) # * 2 for bidirectional
+        self.init_hidden(minibatch_size)
+        self.softmax_to_angle = soft_to_angle(self.mixture_size)
+        self.soft = nn.LogSoftmax(2)
+        self.bn = nn.BatchNorm1d(self.mixture_size)
+        self.dense2_post_dec = nn.Linear(in_features=self.LSTM_OUTPUT_SIZE*2, out_features=VOCAB_SIZE )
+        #self.dense3_post_dec = nn.Linear(in_features=50, out_features=VOCAB_SIZE )
+        self.device = device
 
-class RrnModel(openprotein.BaseModel):
-    def __init__(self, embedding_size, minibatch_size, use_gpu):
-        super(RrnModel, self).__init__(use_gpu, embedding_size)
-        self.recurrent_steps = 2
-        self.hidden_size = 50
-        self.msg_output_size = 50
-        self.output_size = 9 # 3 dimensions * 3 coordinates for each aa
-        self.f_to_hid = nn.Linear((embedding_size*2 + 9), self.hidden_size, bias=True)
-        self.hid_to_pos = nn.Linear(self.hidden_size, self.msg_output_size, bias=True)
-        self.g = nn.Linear(embedding_size + 9 + self.msg_output_size, 9, bias=True) # (last state + orginal state)
-        self.use_gpu = use_gpu
+    def forward(self, latent_space):
+        #decoding. takes in a single latent code from a single part of the batch. 
+        # where input is the teacher forcing or the predictions from the previous step.
 
-    def f(self, aa_features):
-        # aa_features: msg_count * 2 * feature_count
-        min_distance = torch.tensor(0.000001)
-        if self.use_gpu:
-            min_distance = min_distance.cuda()
-        aa_features_transformed = torch.cat(
-            (
-                aa_features[:,0,0:21],
-                aa_features[:,1,0:21],
-                aa_features[:,0,21:30] - aa_features[:,1,21:30]
-            ), dim=1)
-        return self.hid_to_pos(self.f_to_hid(aa_features_transformed))  # msg_count * outputsize
+        # batch_first = True for this. 
+        prev_out, hidden = self.decoder(latent_space)
 
-    def _get_network_emissions(self, original_aa_string):
-        initial_aa_pos = intial_pos_from_aa_string(original_aa_string)
-        packed_input_sequences = self.embed(original_aa_string)
-        backbone_atoms_padded, batch_sizes_backbone = structures_to_backbone_atoms_padded(initial_aa_pos)
-        if self.use_gpu:
-            backbone_atoms_padded = backbone_atoms_padded.cuda()
-        embedding_padded, batch_sizes = torch.nn.utils.rnn.pad_packed_sequence(
-            torch.nn.utils.rnn.PackedSequence(packed_input_sequences))
-        for i in range(self.recurrent_steps):
-            combined_features = torch.cat((embedding_padded,backbone_atoms_padded),dim=2)
-            for idx, aa_features in enumerate(combined_features.transpose(0,1)):
-                msg = pass_messages(aa_features, self.f, self.use_gpu) # aa_count * output size
-                backbone_atoms_padded[:,idx] = self.g(torch.cat((aa_features, msg), dim=1))
-
-        output, batch_sizes = calculate_dihedral_angles_over_minibatch(original_aa_string, backbone_atoms_padded, batch_sizes_backbone, self.use_gpu)
-        return output, backbone_atoms_padded, batch_sizes
-
-
+        #predict sequences: 
+        #print('batch norm ', prev_out.shape)
+        #prev_out = self.batchnorm(prev_out.permute([0,2,1])).permute([0,2,1]).contiguous()
+        pred_seqs = F.log_softmax(self.dense2_post_dec(prev_out), dim=2)
+        # weird angle mixture model thing. 
+        x = self.hidden_to_labels(prev_out)
+        x = self.bn(x)
+        x = x.transpose(1,2) #(minibatch_size, -1, self.mixture_size)
+        p = torch.exp(self.soft(x))
+        output_angles = self.softmax_to_angle(p).transpose(0,1) # max size, minibatch size, 3 (angels)
+        backbone_atoms_padded, batch_sizes_backbone = get_backbone_positions_from_angular_prediction(output_angles, 
+                                                                        batch_sizes, self.device)     
+        
+        return pred_seqs, output_angles, backbone_atoms_padded, batch_sizes_backbone
+    
+    '''def initHidden(self, batch_size):
+        hidden_h = torch.empty([self.LSTM_NUM_LAYERS,batch_size,int(self.LSTM_OUTPUT_SIZE)], device=device, requires_grad=True)
+        torch.nn.init.orthogonal_(hidden_h, gain=nn.init.calculate_gain('tanh'))
+        return (hidden_h,
+                torch.zeros([self.LSTM_NUM_LAYERS,batch_size,int(self.LSTM_OUTPUT_SIZE)], device=device, requires_grad=True))'''
