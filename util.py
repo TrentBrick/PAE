@@ -6,6 +6,7 @@
 
 import torch
 import torch.utils.data
+import torch.nn.utils.rnn as rnn_utils
 import h5py
 from datetime import datetime
 import PeptideBuilder
@@ -25,9 +26,10 @@ AA_ID_DICT = {'A': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7, 'I': 8, 'K
 
 def contruct_dataloader_from_disk(filename, minibatch_size):
     # may want to pre generate ind_n_len with another function and then feed this into the BatchSampler direct
-    bucket_batch_sampler = BucketBatchSampler(h5py.File(filename, 'r')['primary'], minibatch_size) # <-- does not store X
+    ind_n_len = H5PytorchDataset(filename).sequences()   
+    bucket_batch_sampler = BucketBatchSampler(ind_n_len, minibatch_size) # <-- does not store X
     return torch.utils.data.DataLoader(H5PytorchDataset(filename), batch_size=1, batch_sampler= bucket_batch_sampler,
-                                       shuffle=False, num_workers=8, 
+                                       shuffle=False, num_workers=0, 
                                        collate_fn=H5PytorchDataset.sort_samples_in_minibatch,
                                        drop_last=False)
 
@@ -51,6 +53,14 @@ class H5PytorchDataset(torch.utils.data.Dataset):
     def __len__(self):
         return self.num_proteins
 
+    def sequences(self):
+        padding_mask = torch.Tensor(self.h5pyfile['padding_mask']).type(dtype=torch.uint8) 
+        lens = padding_mask.sum(dim=1)
+        ind_n_len = []
+        for i, p in enumerate(lens):
+            ind_n_len.append((i, p.item()))
+        return ind_n_len
+       
     def sort_samples_in_minibatch(samples):
         samples_list = []
         for s in samples:
@@ -61,11 +71,8 @@ class H5PytorchDataset(torch.utils.data.Dataset):
 
 class BucketBatchSampler(Sampler):
     # want inputs to be an array
-    def __init__(self, inputs, batch_size):
+    def __init__(self, ind_n_len, batch_size):
         self.batch_size = batch_size
-        ind_n_len = []
-        for i, p in enumerate(inputs):
-            ind_n_len.append((i, p.shape[0]))
         self.ind_n_len = ind_n_len
         self.batch_list = self._generate_batch_map()
         self.num_batches = len(self.batch_list)
@@ -192,13 +199,13 @@ def loadModel(encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, loa
     return encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, loss, e, best_eval_acc
 
 def init_weights(m):
-    if type(m) == nn.Linear:
-        torch.nn.init.xavier_uniform_(m.weight, gain=nn.init.calculate_gain('relu'))
+    if type(m) == torch.nn.Linear:
+        torch.nn.init.xavier_uniform_(m.weight, gain=torch.nn.init.calculate_gain('relu'))
         m.bias.data.fill_(0.01)
-    elif type(m) == nn.LSTM:
+    elif type(m) == torch.nn.LSTM:
         for name, param in m.named_parameters():
             if 'weight' in name:
-                torch.nn.init.xavier_uniform_(param, gain=nn.init.calculate_gain('tanh'))
+                torch.nn.init.xavier_uniform_(param, gain=torch.nn.init.calculate_gain('tanh'))
             if 'bias' in name:
                 param = torch.zeros(param.shape)
 
@@ -208,16 +215,16 @@ def save_weights(m):
         save_init_weights[name] = param
     return save_init_weights
 
-def embed(self, original_aa_string, device):
+def embed(original_aa_string, device):
     data, batch_sizes = torch.nn.utils.rnn.pad_packed_sequence(
         torch.nn.utils.rnn.pack_sequence(original_aa_string))
     # one-hot encoding
     start_compute_embed = time.time()
     prot_aa_list = data.unsqueeze(1)
-    embed_tensor = torch.zeros(prot_aa_list.size(0), 21, prot_aa_list.size(2)) # 21 classes
-    prot_aa_list.to(device)
-    embed_tensor.to(device)
+    embed_tensor = torch.zeros(prot_aa_list.size(0), 21, prot_aa_list.size(2)).to(device) # 21 classes
+    prot_aa_list.to(device) #should already be embedded. 
     input_sequences = embed_tensor.scatter_(1, prot_aa_list.data, 1).transpose(1,2)
+    print('from embed better have zero padding vectors at the end!!', input_sequences[-1][-10:])
     end = time.time()
     write_out("Embed time:", end - start_compute_embed)
     packed_input_sequences = rnn_utils.pack_padded_sequence(input_sequences, batch_sizes)
@@ -292,25 +299,19 @@ def write_result_summary(accuracy):
 
 def calculate_dihedral_angles_over_minibatch(atomic_coords_padded, batch_sizes, device, is_padded=True):
     angles = []
-    atomic_coords = atomic_coords_padded.transpose(0,1)
     if is_padded:
+        atomic_coords = atomic_coords_padded.transpose(0,1)
         for idx, _ in enumerate(batch_sizes): # WHY IS THERE A FOR LOOP HERE??
             angles.append(calculate_dihedral_angles(atomic_coords[idx][:batch_sizes[idx]], device))
     else: 
         for atomic_c in atomic_coords_padded: # WHY IS THERE A FOR LOOP HERE??
-            angles.append(calculate_dihedral_angles(atomic_c, device))
+            angles.append(calculate_dihedral_angles(atomic_c.transpose(0,1), device))
     return torch.nn.utils.rnn.pad_packed_sequence(
             torch.nn.utils.rnn.pack_sequence(angles))
 
-def protein_id_to_str(protein_id_list):
-    _aa_dict_inverse = {v: k for k, v in AA_ID_DICT.items()}
-    aa_list = []
-    for a in protein_id_list:
-        aa_symbol = _aa_dict_inverse[int(a)]
-        aa_list.append(aa_symbol)
-    return aa_list
-
 def calculate_dihedral_angles(atomic_coords, device):
+
+    print(atomic_coords.shape)
 
     assert int(atomic_coords.shape[1]) == 9
     atomic_coords = atomic_coords.contiguous().view(-1,3)
@@ -454,6 +455,14 @@ def calc_avg_drmsd_over_minibatch(backbone_atoms_padded, actual_coords_padded, b
 
 def encode_primary_string(primary):
     return list([AA_ID_DICT[aa] for aa in primary])
+
+def protein_id_to_str(protein_id_list):
+    _aa_dict_inverse = {v: k for k, v in AA_ID_DICT.items()}
+    aa_list = []
+    for a in protein_id_list:
+        aa_symbol = _aa_dict_inverse[int(a)]
+        aa_list.append(aa_symbol)
+    return aa_list
 
 '''def intial_pos_from_aa_string(batch_aa_string):
     structures = []

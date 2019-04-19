@@ -1,12 +1,12 @@
-# tester
-
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-#from util import embed, calculate_dihedral_angles_over_minibatch
+import math
+from util import embed, calculate_dihedral_angles_over_minibatch
 
 class EncoderNet(nn.Module):
-    def __init__(self, ENCODING_LSTM_OUTPUT=100, CODE_LAYER_SIZE=50, VOCAB_SIZE=21, ENCODER_LSTM_NUM_LAYERS=2, device ):
+    def __init__(self, device, ENCODING_LSTM_OUTPUT=100, CODE_LAYER_SIZE=50, VOCAB_SIZE=21, ENCODER_LSTM_NUM_LAYERS=2 ):
         super(EncoderNet, self).__init__()
         #encoding
         self.LSTM_NUM_LAYERS = ENCODER_LSTM_NUM_LAYERS
@@ -18,14 +18,13 @@ class EncoderNet(nn.Module):
         self.dense2_enc = nn.Linear(in_features=CODE_LAYER_SIZE, out_features=CODE_LAYER_SIZE )
         self.device = device
 
-    def forward(self, seq, coords):
+    def forward(self, seq, tert):
         packed_input_sequences = embed(seq, self.device)
         # dealing with the sequences: 
         packed_output, hidden = self.encoder_seq(packed_input_sequences)
         out_padded, lengths = torch.nn.utils.rnn.pad_packed_sequence(packed_output)
         # batch comes second here? so shape[1]
-        seq_hidden_means = torch.mean(out_padded[torch.arange(seq.shape[1]), lengths], dim=1)
-
+        seq_hidden_means = torch.sum(out_padded, dim=0) / lengths.view(-1,1).expand(-1, self.ENCODING_LSTM_OUTPUT*2).type(torch.float)
         #Now dealing with the tertiary structure!! Convert coords to dihedral angles. 
         # None here is because this is not padded and I dont want to give it a batch size. 
         packed_input_tert = calculate_dihedral_angles_over_minibatch(tert, None, self.device, is_padded=False) 
@@ -33,7 +32,7 @@ class EncoderNet(nn.Module):
         packed_output, hidden = self.encoder_tert(packed_input_tert)
         out_padded, lengths = torch.nn.utils.rnn.pad_packed_sequence(packed_output)
         # batch comes second here? so shape[1]
-        tert_hidden_means = torch.mean(out_padded[torch.arange(seq.shape[1]), lengths], dim=1)
+        tert_hidden_means = torch.sum(out_padded, dim=0) / lengths.view(-1,1).expand(-1, self.ENCODING_LSTM_OUTPUT*2).type(torch.float)
         # get mean of all hidden states. will then concat this with the tertiary and put through dense.        
         res = torch.cat( (seq_hidden_means, tert_hidden_means), dim=1)        
         res = self.batchnorm(res)
@@ -87,7 +86,6 @@ class DecoderNet(nn.Module):
         
         self.mixture_size = 500
         self.hidden_to_labels = nn.Linear(self.LSTM_OUTPUT_SIZE * 2, self.mixture_size, bias=True) # * 2 for bidirectional
-        self.init_hidden(minibatch_size)
         self.softmax_to_angle = soft_to_angle(self.mixture_size)
         self.soft = nn.LogSoftmax(2)
         self.bn = nn.BatchNorm1d(self.mixture_size)

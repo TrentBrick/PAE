@@ -1,4 +1,4 @@
-from preprocessing import process_raw_data
+#from preprocessing import process_raw_data
 import torch
 import torch.utils.data
 import h5py
@@ -41,16 +41,16 @@ if args.hide_ui:
 # start web server
 #start_dashboard_server()
 
-training_file = "data/preprocessed/testing.hdf5"
-validation_file = "data/preprocessed/training_100.hdf5"
-testing_file = "data/preprocessed/validation.hdf5"
+training_file = "data/preprocessed/training_100.hdf5"
+validation_file = "data/preprocessed/validation.hdf5"
+testing_file = "data/preprocessed/testing.hdf5"
 
-ENCODING_LSTM_OUTPUT=800
+ENCODING_LSTM_OUTPUT=300
 CODE_LAYER_SIZE=200
-DECODING_LSTM_OUTPUT=800
+DECODING_LSTM_OUTPUT=300
 VOCAB_SIZE=21
-ENCODER_LSTM_NUM_LAYERS=2
-DECODER_LSTM_NUM_LAYERS=2
+ENCODER_LSTM_NUM_LAYERS=1
+DECODER_LSTM_NUM_LAYERS=1
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
 
 mem_pin = False
@@ -89,7 +89,7 @@ load_model =False
 save_name = 'code300_' 
 load_name = 'code300_'
 
-print('Name that all models for this train will be saved under:', save_name)
+print('All models for this run will be saved under:', save_name)
 if load_model:
     print("LOADING IN A MODEL, load_model=True")
     encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, loss, curr_ep, best_eval_acc = loadModel(encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, load_name)

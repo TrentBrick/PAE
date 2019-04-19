@@ -1,7 +1,7 @@
 # do I need to import everything here too??
-#import torch 
-#from util import *
-#from models import *
+import torch 
+from util import *
+from models import *
 
 def fitModel(encoder_net, decoder_net, encoder_optimizer, 
              decoder_optimizer, BATCH_SIZE, epochs, e, learning_rate, 
@@ -24,8 +24,8 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
                         num_workers=8, collate_fn=one_hotter, 
                         drop_last=False, pin_memory=mem_pin)'''
 
-    train_loader = contruct_dataloader_from_disk(train_file, BATCH_SIZE)
-    validation_loader = contruct_dataloader_from_disk(val_file, BATCH_SIZE)
+    train_loader = contruct_dataloader_from_disk(training_file, BATCH_SIZE)
+    validation_loader = contruct_dataloader_from_disk(validation_file, BATCH_SIZE)
     train_dataset_size = train_loader.dataset.__len__()
     validation_dataset_size = validation_loader.dataset.__len__()
     
@@ -76,10 +76,11 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
         # iterate through data
         for x in train_loader:
             num_batches_per_epoch += 1
-            
-            seqs = x[0].to(device)
-            coords = x[1].to(device)
-            mask = x[2].to(device)
+
+            seqs, coords, mask = x
+            #seqs = torch.Tensor(seqs).to(device)
+            #coords = torch.Tensor(coords).to(device)
+            #mask = torch.Tensor(mask).to(device)
 
             encoder_optimizer.zero_grad()
             decoder_optimizer.zero_grad()
