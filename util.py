@@ -215,16 +215,14 @@ def save_weights(m):
         save_init_weights[name] = param
     return save_init_weights
 
-def embed(original_aa_string, device):
-    data, batch_sizes = torch.nn.utils.rnn.pad_packed_sequence(
-        torch.nn.utils.rnn.pack_sequence(original_aa_string))
+def embed(data, batch_sizes, device):
+    
     # one-hot encoding
     start_compute_embed = time.time()
     prot_aa_list = data.unsqueeze(1)
     embed_tensor = torch.zeros(prot_aa_list.size(0), 21, prot_aa_list.size(2)).to(device) # 21 classes
-    prot_aa_list.to(device) #should already be embedded. 
+    #prot_aa_list.to(device) #should already be embedded. 
     input_sequences = embed_tensor.scatter_(1, prot_aa_list.data, 1).transpose(1,2)
-    print('from embed better have zero padding vectors at the end!!', input_sequences[-1][-10:])
     end = time.time()
     write_out("Embed time:", end - start_compute_embed)
     packed_input_sequences = rnn_utils.pack_padded_sequence(input_sequences, batch_sizes)
@@ -234,21 +232,21 @@ def seq_and_angle_loss(pred_seqs, seqs, pred_dihedrals, padded_dihedrals, mask, 
     # GET TUTORIAL FROM MEDIUM!!
     '''criterion = torch.nn.NLLLoss(size_average=True, ignore_index=-1)
     loss=  criterion(pred_seqs.permute([0,2,1]).contiguous(), seqs.max(dim=2)[1])'''
-    #print('seqs shape', seqs.shape)
     #get cross entropy just padding at the end!
     criterion = torch.nn.NLLLoss(size_average=True, ignore_index=0)
-    seq_cross_ent_loss = criterion(Y_hat.permute([0,2,1]).contiguous(), Y.max(dim=2)[1])
+    seq_cross_ent_loss = criterion(pred_seqs.permute([0,2,1]).contiguous(), seqs)
     # flatten all the labels
-    seqs = seqs.max(dim=2)[1].view(-1)
+    seqs = seqs.flatten()
     pred_seqs = pred_seqs.view(-1, VOCAB_SIZE)
     seq_mask = (seqs > 0).float() # this is just the padding at the end! 
-    nb_tokens = int(torch.sum(mask).item())
+    nb_tokens = int(torch.sum(seq_mask).item())
     #get accuracy
     top_preds = pred_seqs.max(dim=1)[1]
-    seq_acc = torch.sum( torch.eq(top_preds, seqs).type(torch.cuda.FloatTensor)*seq_mask) / nb_tokens
+    seq_acc = torch.sum( torch.eq(top_preds, seqs).type(torch.float)*seq_mask) / nb_tokens
     
     #loss for the angles, apply the mask to padding and uncertain coordinates!
-    angular_loss = calc_angular_difference(torch.masked_select(torch.Tensor(pred_dihedrals), mask), 
+    mask = mask.view(mask.shape[0],mask.shape[1], 1).expand(-1,-1,3)
+    angular_loss = calc_angular_difference(torch.masked_select(pred_dihedrals, mask), 
             torch.masked_select(torch.Tensor(padded_dihedrals), mask))
 
     return seq_cross_ent_loss, seq_acc, angular_loss
@@ -303,16 +301,15 @@ def calculate_dihedral_angles_over_minibatch(atomic_coords_padded, batch_sizes, 
         atomic_coords = atomic_coords_padded.transpose(0,1)
         for idx, _ in enumerate(batch_sizes): # WHY IS THERE A FOR LOOP HERE??
             angles.append(calculate_dihedral_angles(atomic_coords[idx][:batch_sizes[idx]], device))
+        return torch.nn.utils.rnn.pad_packed_sequence(
+            torch.nn.utils.rnn.pack_sequence(angles))
     else: 
         for atomic_c in atomic_coords_padded: # WHY IS THERE A FOR LOOP HERE??
-            angles.append(calculate_dihedral_angles(atomic_c.transpose(0,1), device))
-    return torch.nn.utils.rnn.pad_packed_sequence(
-            torch.nn.utils.rnn.pack_sequence(angles))
+            angles.append(calculate_dihedral_angles(atomic_c.to(device), device))
+        return angles
+    
 
 def calculate_dihedral_angles(atomic_coords, device):
-
-    print(atomic_coords.shape)
-
     assert int(atomic_coords.shape[1]) == 9
     atomic_coords = atomic_coords.contiguous().view(-1,3)
 
@@ -405,7 +402,9 @@ def calc_rmsd(chain_a, chain_b):
     return RMSD
 
 def calc_angular_difference(a1, a2):
-    a1 = a1.transpose(0,1).contiguous()
+    # MSE between the angles. Need to look into the min equation... 
+    sum = torch.sqrt(torch.mean(a1-a2) ** 2)
+    '''a1 = a1.transpose(0,1).contiguous()
     a2 = a2.transpose(0,1).contiguous()
     sum = 0
     for idx, _ in enumerate(a1):
@@ -416,8 +415,8 @@ def calc_angular_difference(a1, a2):
         sum += torch.sqrt(torch.mean(
             torch.min(torch.abs(a2_element - a1_element),
                       2 * math.pi - torch.abs(a2_element - a1_element)
-                      ) ** 2))
-    return sum / a1.shape[0]
+                      ) ** 2))'''
+    return sum #/ a1.shape[0]
 
 def structures_to_backbone_atoms_padded(structures):
     backbone_atoms_list = []
@@ -439,7 +438,7 @@ def get_backbone_positions_from_angular_prediction(angular_emissions, batch_size
     # angular_emissions -1 x minibatch size x 3 (omega, phi, psi)
     points = pnerf.dihedral_to_point(angular_emissions, device)
     coordinates = pnerf.point_to_coordinate(points, device) / 100 # devide by 100 to angstrom unit
-    return coordinates.transpose(0,1).contiguous().view(len(batch_sizes),-1,9).transpose(0,1), batch_sizes
+    return coordinates.transpose(0,1).contiguous().view(batch_sizes,-1,9).transpose(0,1), batch_sizes
 
 
 def calc_avg_drmsd_over_minibatch(backbone_atoms_padded, actual_coords_padded, batch_sizes):
@@ -463,6 +462,21 @@ def protein_id_to_str(protein_id_list):
         aa_symbol = _aa_dict_inverse[int(a)]
         aa_list.append(aa_symbol)
     return aa_list
+
+import time
+import math
+def asMinutes(s):
+    m = math.floor(s / 60)
+    s -= m * 60
+    return '%dm %ds' % (m, s)
+
+def timeSince(since, percent):
+    now = time.time()
+    s = now - since
+    es = s / (percent)
+    rs = es - s
+    return '%s (- %s)' % (asMinutes(s), asMinutes(rs))
+
 
 '''def intial_pos_from_aa_string(batch_aa_string):
     structures = []

@@ -41,7 +41,8 @@ if args.hide_ui:
 # start web server
 #start_dashboard_server()
 
-training_file = "data/preprocessed/training_100.hdf5"
+# WRONG FILEI FOR TRAINING FOR NOW!! 
+training_file = "data/preprocessed/testing.hdf5"
 validation_file = "data/preprocessed/validation.hdf5"
 testing_file = "data/preprocessed/testing.hdf5"
 

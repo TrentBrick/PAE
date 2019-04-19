@@ -78,6 +78,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
             num_batches_per_epoch += 1
 
             seqs, coords, mask = x
+
             #seqs = torch.Tensor(seqs).to(device)
             #coords = torch.Tensor(coords).to(device)
             #mask = torch.Tensor(mask).to(device)
@@ -145,15 +146,13 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
             for x in validation_loader:
                 num_eval_batches_per_epoch += 1
                 
-                seqs = x[0].to(device)
-                coords = x[1].to(device)
-                mask = x[2].to(device)
+                seqs, coords, mask = x
 
-                seq_cross_ent_loss, seq_acc, angular_loss = train_forward(encoder_net, decoder_net, seqs, device, teacher_forcing=False, readout=readout, print_preds=want_preds_printed)
-                eval_loss = seq_cross_ent_loss+angular_loss
+                eval_seq_cross_ent_loss, eval_seq_acc, eval_angular_loss = train_forward(encoder_net, decoder_net, seqs, coords, mask, device, teacher_forcing=False, readout=readout, print_preds=want_preds_printed)
+                eval_loss = eval_seq_cross_ent_loss+eval_angular_loss
                 
                 tot_eval_loss+= eval_loss.item()
-                tot_eval_acc+= eval_acc.item()
+                tot_eval_acc+= eval_seq_acc.item()
             tot_eval_acc = tot_eval_acc/num_eval_batches_per_epoch
             tot_eval_loss = tot_eval_loss/num_eval_batches_per_epoch
             plot_losses_eval.append(tot_eval_loss)
@@ -185,12 +184,15 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
 
 def train_forward(encoder_net, decoder_net, seqs, coords, mask, device, readout=True, teacher_forcing=False, make_preds=False, print_preds=False ):
   
-    latent, padded_dihedrals = encoder_net(seqs, coords)
+    seqs, lengths = torch.nn.utils.rnn.pad_packed_sequence(
+                    torch.nn.utils.rnn.pack_sequence(seqs))
+
+    latent, padded_dihedrals = encoder_net(seqs.to(device), lengths, coords)
     
-    batch_size = seqs.shape[0]
-    max_l = torch.max(seqs.shape[1]) # NEED TO GET THE LONGEST SEQUENCE HERE! 
-    #hidden = decoder_net.initHidden(batch_size)
-    
+    batch_size = latent.shape[0]
+    max_l = torch.max(lengths) # NEED TO GET THE LONGEST SEQUENCE HERE! 
+    #hidden = decoder_net.initHidden(batch_size) put in if want to do teacher forcing. 
+    print(max_l)
     # need to give each of the latents a time step proportional to their length number. 
     # get rid of the time STEPS IF DOING TEACHER FORCING AND INCREMENT THE INPUTS BY ONE!
     if(readout==True): 
@@ -232,5 +234,8 @@ def train_forward(encoder_net, decoder_net, seqs, coords, mask, device, readout=
         print('ground truth sequence', seqs.max(dim=2)[1][rand_ind,:])
         print('predicted values sequence', pred_seqs.max(dim=2)[1][rand_ind,:])
     
+    mask, _ = torch.nn.utils.rnn.pad_packed_sequence(
+                        torch.nn.utils.rnn.pack_sequence(mask))
+
     # feed in the sequence length for each example and the truth
-    return seq_and_angle_loss(pred_seqs, seqs, pred_dihedrals, padded_dihedrals, mask)
+    return seq_and_angle_loss(pred_seqs, seqs.t(), pred_dihedrals, padded_dihedrals, mask)

@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import math
-from util import embed, calculate_dihedral_angles_over_minibatch
+from util import embed, calculate_dihedral_angles_over_minibatch, get_backbone_positions_from_angular_prediction
 
 class EncoderNet(nn.Module):
     def __init__(self, device, ENCODING_LSTM_OUTPUT=100, CODE_LAYER_SIZE=50, VOCAB_SIZE=21, ENCODER_LSTM_NUM_LAYERS=2 ):
@@ -12,24 +12,30 @@ class EncoderNet(nn.Module):
         self.LSTM_NUM_LAYERS = ENCODER_LSTM_NUM_LAYERS
         self.ENCODING_LSTM_OUTPUT = ENCODING_LSTM_OUTPUT
         self.encoder_seq = nn.LSTM(input_size=VOCAB_SIZE, hidden_size= self.ENCODING_LSTM_OUTPUT,num_layers=self.LSTM_NUM_LAYERS,bidirectional=True, batch_first=False)
-        self.encoder_tert = nn.LSTM(input_size=VOCAB_SIZE, hidden_size= self.ENCODING_LSTM_OUTPUT,num_layers=self.LSTM_NUM_LAYERS,bidirectional=True, batch_first=False)
+        self.encoder_tert = nn.LSTM(input_size=3, hidden_size= self.ENCODING_LSTM_OUTPUT,num_layers=self.LSTM_NUM_LAYERS,bidirectional=True, batch_first=False)
         self.batchnorm = nn.BatchNorm1d(ENCODING_LSTM_OUTPUT * 4) # as bidirectional LSTMS, 2 of them. 
         self.dense1_enc = nn.Linear(in_features=(ENCODING_LSTM_OUTPUT* 4 ), out_features=CODE_LAYER_SIZE ) # * self.LSTM_NUM_LAYERS because it is bidirectional
         self.dense2_enc = nn.Linear(in_features=CODE_LAYER_SIZE, out_features=CODE_LAYER_SIZE )
         self.device = device
 
-    def forward(self, seq, tert):
-        packed_input_sequences = embed(seq, self.device)
+    def forward(self, seq, batch_sizes, tert):
+        packed_input_sequences = embed(seq, batch_sizes, self.device)
         # dealing with the sequences: 
         packed_output, hidden = self.encoder_seq(packed_input_sequences)
         out_padded, lengths = torch.nn.utils.rnn.pad_packed_sequence(packed_output)
         # batch comes second here? so shape[1]
         seq_hidden_means = torch.sum(out_padded, dim=0) / lengths.view(-1,1).expand(-1, self.ENCODING_LSTM_OUTPUT*2).type(torch.float)
         #Now dealing with the tertiary structure!! Convert coords to dihedral angles. 
-        # None here is because this is not padded and I dont want to give it a batch size. 
-        packed_input_tert = calculate_dihedral_angles_over_minibatch(tert, None, self.device, is_padded=False) 
+        # None here is because this is not padded and I dont want to give it a batch size.
+        tert_angles = calculate_dihedral_angles_over_minibatch(tert, None, self.device, is_padded=False) 
+        # convert this into a packed sequence! 
+        packed_tert_angles = torch.nn.utils.rnn.pack_sequence(tert_angles)
+
+        #this is to return for the loss function, the real dihedral angles: 
+        padded_real_angles, _ = torch.nn.utils.rnn.pad_packed_sequence(packed_tert_angles)
+
         # dealing with the sequences: 
-        packed_output, hidden = self.encoder_tert(packed_input_tert)
+        packed_output, hidden = self.encoder_tert(packed_tert_angles)
         out_padded, lengths = torch.nn.utils.rnn.pad_packed_sequence(packed_output)
         # batch comes second here? so shape[1]
         tert_hidden_means = torch.sum(out_padded, dim=0) / lengths.view(-1,1).expand(-1, self.ENCODING_LSTM_OUTPUT*2).type(torch.float)
@@ -38,7 +44,7 @@ class EncoderNet(nn.Module):
         res = self.batchnorm(res)
         res = self.dense2_enc(F.elu(self.dense1_enc(res))) # used to have F.tanh here!
         # out_padded are the dihedral angles for the structure!! 
-        return res, out_padded
+        return res, padded_real_angles
 
 class soft_to_angle(nn.Module):
     def __init__(self, mixture_size):
@@ -99,19 +105,17 @@ class DecoderNet(nn.Module):
 
         # batch_first = True for this. 
         prev_out, hidden = self.decoder(latent_space)
-
         #predict sequences: 
-        #print('batch norm ', prev_out.shape)
-        #prev_out = self.batchnorm(prev_out.permute([0,2,1])).permute([0,2,1]).contiguous()
         pred_seqs = F.log_softmax(self.dense2_post_dec(prev_out), dim=2)
         # weird angle mixture model thing. 
         x = self.hidden_to_labels(prev_out)
-        x = self.bn(x)
-        x = x.transpose(1,2) #(minibatch_size, -1, self.mixture_size)
+        x = self.bn(x.permute([0,2,1])).permute([0,2,1]).contiguous()
+        #x = x.transpose(1,2) #(minibatch_size, -1, self.mixture_size)
         p = torch.exp(self.soft(x))
         output_angles = self.softmax_to_angle(p).transpose(0,1) # max size, minibatch size, 3 (angels)
+        # used to feed in batch sizes here. could do so from encoder. but all I do I take the length of it... 
         backbone_atoms_padded, batch_sizes_backbone = get_backbone_positions_from_angular_prediction(output_angles, 
-                                                                        batch_sizes, self.device)     
+                                                                        latent_space.shape[0], self.device)     
         
         return pred_seqs, output_angles, backbone_atoms_padded, batch_sizes_backbone
     
