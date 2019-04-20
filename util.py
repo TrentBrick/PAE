@@ -47,6 +47,7 @@ class H5PytorchDataset(torch.utils.data.Dataset):
         mask = torch.masked_select(torch.Tensor(self.h5pyfile['mask'][index,:]).type(dtype=torch.uint8), padding_mask)
         # I need to apply the mask select here but only to the end padding!
         prim = torch.masked_select(torch.Tensor(self.h5pyfile['primary'][index,:]).type(dtype=torch.long), padding_mask)
+        print(torch.Tensor(self.h5pyfile['tertiary']))
         tertiary = torch.Tensor(self.h5pyfile['tertiary'][index][:int(padding_mask.sum())]) # max length x 9
         return  prim, tertiary, mask
 
@@ -234,6 +235,8 @@ def seq_and_angle_loss(pred_seqs, seqs, pred_dihedrals, padded_dihedrals, mask, 
     loss=  criterion(pred_seqs.permute([0,2,1]).contiguous(), seqs.max(dim=2)[1])'''
     #get cross entropy just padding at the end!
     criterion = torch.nn.NLLLoss(size_average=True, ignore_index=0)
+    print('pred seqs', pred_seqs.permute([0,2,1]).contiguous())
+    print('real seqs', seqs)
     seq_cross_ent_loss = criterion(pred_seqs.permute([0,2,1]).contiguous(), seqs)
     # flatten all the labels
     seqs = seqs.flatten()
@@ -248,6 +251,8 @@ def seq_and_angle_loss(pred_seqs, seqs, pred_dihedrals, padded_dihedrals, mask, 
     mask = mask.view(mask.shape[0],mask.shape[1], 1).expand(-1,-1,3)
     angular_loss = calc_angular_difference(torch.masked_select(pred_dihedrals, mask), 
             torch.masked_select(torch.Tensor(padded_dihedrals), mask))
+
+    print(seq_cross_ent_loss, seq_acc, angular_loss)
 
     return seq_cross_ent_loss, seq_acc, angular_loss
     

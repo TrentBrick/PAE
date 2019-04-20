@@ -16,10 +16,10 @@ import torch
 
 MAX_SEQUENCE_LENGTH = 750
 
-def process_raw_data(use_gpu, force_pre_processing_overwrite=True):
+def process_raw_data(device, force_pre_processing_overwrite=True):
     print("Starting pre-processing of raw data...")
     input_files = glob.glob("data/raw/*")
-    print(input_files)
+    #input_files = [input_files[0]]
     input_files_filtered = filter_input_files(input_files)
     for file_path in input_files_filtered:
         filename = file_path.split('\\')[-1]
@@ -35,7 +35,7 @@ def process_raw_data(use_gpu, force_pre_processing_overwrite=True):
                 print("Skipping pre-processing for this file...")
 
         if not os.path.isfile(preprocessed_file_name):
-            process_file(filename, preprocessed_file_name, use_gpu)
+            process_file(filename, preprocessed_file_name, device)
     print("Completed pre-processing.")
 
 def read_protein_from_file(file_pointer):
@@ -75,7 +75,7 @@ def read_protein_from_file(file_pointer):
                 return None
 
 
-def process_file(input_file, output_file, use_gpu):
+def process_file(input_file, output_file, device):
     print("Processing raw data file", input_file)
 
     # create output file
@@ -106,47 +106,43 @@ def process_file(input_file, output_file, use_gpu):
             print("Dropping protein as length too long:", sequence_length)
             continue
 
-        '''primary_padded = np.zeros(MAX_SEQUENCE_LENGTH)
-        tertiary_padded = np.zeros((9, MAX_SEQUENCE_LENGTH))
-        mask_padded = np.zeros(MAX_SEQUENCE_LENGTH)'''
-
         # masking and padding here happens so that the stored dataset is of the same size. 
         # when the data is loaded in this padding is removed again.
         # 
         # # I dont want to have the masking applied here. Only in the loss function!! 
         # # I also dont get why padding was added BEFORE calculating the angles? 
         # # would make a lot more sense to only add it afterwards.  
-        '''primary_padded[:sequence_length] = next_protein['primary']
-        t_transposed = np.ravel(np.array(next_protein['tertiary']).T)
-        t_reshaped = np.reshape(t_transposed, (sequence_length,9)).T
+        
+        mask = next_protein['mask']
+        mask = torch.Tensor(mask).type(dtype=torch.uint8)
 
-        tertiary_padded[:,:sequence_length] = t_reshaped
-        mask_padded[:sequence_length] = next_protein['mask']
-
-        mask = torch.Tensor(mask_padded).type(dtype=torch.uint8)'''
+        #                           does it go from a 1 to a 0 more than once?? 
+        # or mask.split('01').shape>1
+        if mask.sum() == mask.shape[0] :
+            print('dropping protein, mask is present')
+            continue
 
         primary = next_protein['primary']
+        print('org shape', np.array(next_protein['tertiary']).shape)
         t_transposed = np.ravel(np.array(next_protein['tertiary']).T)
+        print('trans', t_transposed.shape)
         t_reshaped = np.reshape(t_transposed, (sequence_length,9)).T
-
         tertiary = t_reshaped
-        mask = next_protein['mask']
-
-        mask = torch.Tensor(mask).type(dtype=torch.uint8)
-        
-        '''prim = torch.masked_select(torch.Tensor(primary_padded).type(dtype=torch.long), mask)
-        pos = torch.masked_select(torch.Tensor(tertiary_padded), mask).view(9, -1).transpose(0, 1).unsqueeze(1) / 100'''
         prim = torch.Tensor(primary).type(dtype=torch.long)
+
+        print('tertiary shape', tertiary.shape)
+
         pos = torch.Tensor(tertiary).view(9, -1).transpose(0, 1).unsqueeze(1) / 100
+        print('pos shape', tertiary.shape)
+        pos = pos.to(device)
 
-        if use_gpu:
-            pos = pos.cuda()
-
-        angles, batch_sizes = calculate_dihedral_angles_over_minibatch(pos, [len(prim)], use_gpu=use_gpu)
-
-        tertiary, _ = get_backbone_positions_from_angular_prediction(angles, batch_sizes, use_gpu=use_gpu)
+        # why am I getting nans here? 
+        #print('before angles', pos)
+        angles, batch_sizes = calculate_dihedral_angles_over_minibatch(pos, [len(prim)], device)
+        #print('angles', angles)
+        tertiary, _ = get_backbone_positions_from_angular_prediction(angles, batch_sizes, device)
         tertiary = tertiary.squeeze(1)
-
+        #print('backbone positions again',tertiary)
         primary_padded = np.zeros(MAX_SEQUENCE_LENGTH)
         tertiary_padded = np.zeros((MAX_SEQUENCE_LENGTH, 9))
 
@@ -176,5 +172,5 @@ def filter_input_files(input_files):
     disallowed_file_endings = (".gitignore", ".DS_Store")
     return list(filter(lambda x: not x.endswith(disallowed_file_endings), input_files))
 
-use_gpu=False
-process_raw_data(use_gpu, force_pre_processing_overwrite=True)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
+process_raw_data(device, force_pre_processing_overwrite=True)

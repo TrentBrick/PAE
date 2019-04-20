@@ -2,6 +2,7 @@
 import torch 
 from util import *
 from models import *
+import pickle
 
 def fitModel(encoder_net, decoder_net, encoder_optimizer, 
              decoder_optimizer, BATCH_SIZE, epochs, e, learning_rate, 
@@ -192,7 +193,6 @@ def train_forward(encoder_net, decoder_net, seqs, coords, mask, device, readout=
     batch_size = latent.shape[0]
     max_l = torch.max(lengths) # NEED TO GET THE LONGEST SEQUENCE HERE! 
     #hidden = decoder_net.initHidden(batch_size) put in if want to do teacher forcing. 
-    print(max_l)
     # need to give each of the latents a time step proportional to their length number. 
     # get rid of the time STEPS IF DOING TEACHER FORCING AND INCREMENT THE INPUTS BY ONE!
     if(readout==True): 
@@ -221,6 +221,7 @@ def train_forward(encoder_net, decoder_net, seqs, coords, mask, device, readout=
     else: 
         #prev_out = torch.zeros([batch_size,max_l.item(), 1], device=device, requires_grad=False)
         # this was for the original keras model where I needed to repeat vector the latent space. 
+        print('latent space',latent)
         pred_seqs, pred_dihedrals, backbone_atoms_padded, batch_sizes_backbone = decoder_net( latent.view(batch_size,1,-1).expand(-1,max_l.item(),-1))
 
     #only use the backbone_atoms_padded if I want to calc. drmsd.

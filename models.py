@@ -25,24 +25,26 @@ class EncoderNet(nn.Module):
         out_padded, lengths = torch.nn.utils.rnn.pad_packed_sequence(packed_output)
         # batch comes second here? so shape[1]
         seq_hidden_means = torch.sum(out_padded, dim=0) / lengths.view(-1,1).expand(-1, self.ENCODING_LSTM_OUTPUT*2).type(torch.float)
+        
         #Now dealing with the tertiary structure!! Convert coords to dihedral angles. 
         # None here is because this is not padded and I dont want to give it a batch size.
+        print('pre dihedral', tert)
         tert_angles = calculate_dihedral_angles_over_minibatch(tert, None, self.device, is_padded=False) 
         # convert this into a packed sequence! 
+        print('pre packing', tert_angles)
         packed_tert_angles = torch.nn.utils.rnn.pack_sequence(tert_angles)
-
         #this is to return for the loss function, the real dihedral angles: 
         padded_real_angles, _ = torch.nn.utils.rnn.pad_packed_sequence(packed_tert_angles)
-
         # dealing with the sequences: 
         packed_output, hidden = self.encoder_tert(packed_tert_angles)
         out_padded, lengths = torch.nn.utils.rnn.pad_packed_sequence(packed_output)
         # batch comes second here? so shape[1]
         tert_hidden_means = torch.sum(out_padded, dim=0) / lengths.view(-1,1).expand(-1, self.ENCODING_LSTM_OUTPUT*2).type(torch.float)
         # get mean of all hidden states. will then concat this with the tertiary and put through dense.        
-        res = torch.cat( (seq_hidden_means, tert_hidden_means), dim=1)        
+        res = torch.cat( (seq_hidden_means, tert_hidden_means), dim=1)       
         res = self.batchnorm(res)
         res = self.dense2_enc(F.elu(self.dense1_enc(res))) # used to have F.tanh here!
+        print('after dense layers', res, res.shape) 
         # out_padded are the dihedral angles for the structure!! 
         return res, padded_real_angles
 
