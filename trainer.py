@@ -9,22 +9,10 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
              decoder_optimizer, BATCH_SIZE, epochs, e, learning_rate, 
              mem_pin, device, save_name, load_name, readout, allow_teacher_force, 
              teaching_strategy, clip, want_preds_printed, encoder_scheduler, decoder_scheduler,
-             training_file, validation_file, testing_file):
+             training_file, validation_file, testing_file, hide_ui):
     
-    
-    set_experiment_id(save_name, learning_rate, BATCH_SIZE)
-
-    '''sampler = BucketDataset(primary_train, BATCH_SIZE)
-    dataloader = DataLoader(df_train, batch_size=1, 
-                            batch_sampler=sampler, shuffle=False,
-                            num_workers=8, collate_fn=one_hotter, 
-                            drop_last=False, pin_memory=mem_pin)
-
-    evaluate_sampler = BucketDataset(primary_cv, BATCH_SIZE)
-    evaluate_dataloader = DataLoader(df_cv, batch_size=1, 
-                        batch_sampler=evaluate_sampler, shuffle=False,
-                        num_workers=8, collate_fn=one_hotter, 
-                        drop_last=False, pin_memory=mem_pin)'''
+    print('save name for experiment', save_name)
+    exp_id = set_experiment_id(save_name, learning_rate, BATCH_SIZE)
 
     train_loader = contruct_dataloader_from_disk(training_file, BATCH_SIZE)
     validation_loader = contruct_dataloader_from_disk(validation_file, BATCH_SIZE)
@@ -78,6 +66,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
         # iterate through data
         for x in train_loader:
             num_batches_per_epoch += 1
+            start_compute_loss = time.time()
 
             seqs, coords, mask = x
 
@@ -98,7 +87,14 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
                                       teacher_forcing=teacher_force, readout=readout)#, print_preds=want_preds_printed)
 
             loss = seq_cross_ent_loss+angular_loss
+
+            #write_out("Train loss:", float(loss))
+            start_compute_grad = time.time()
+
             loss.backward()
+
+            end = time.time()
+            write_out("Loss time:", start_compute_grad-start_compute_loss, "Grad time:", end-start_compute_grad)
             
             # Clip gradients: gradients are modified in place
             encoder_clip = torch.nn.utils.clip_grad_norm_(encoder_net.parameters(), clip)
@@ -143,16 +139,36 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
             tot_eval_loss = 0.0
             tot_eval_acc = 0.0
             num_eval_batches_per_epoch = 0 
+
+            epoch_avg_rmsd = 0.0
+            epoch_avg_drmsd = 0.0
+
             for x in validation_loader:
                 num_eval_batches_per_epoch += 1
                 
                 seqs, coords, mask = x
-
-                eval_seq_cross_ent_loss, eval_seq_acc, eval_angular_loss = train_forward(encoder_net, decoder_net, seqs, coords, mask, device, teacher_forcing=False, readout=readout, print_preds=want_preds_printed)
+                # returns different things because this is the evaluation step! 
+                rmsd, drmsd, eval_seq_cross_ent_loss, eval_seq_acc, eval_angular_loss, angles, angles_pred= train_forward(encoder_net, decoder_net, seqs, coords, mask, device, teacher_forcing=False, readout=readout, print_preds=want_preds_printed, eval_mode=True)
+                # angles here are all still padded so is the sequence.  
+                epoch_avg_rmsd += rmsd
+                epoch_avg_drmsd += drmsd
+                
                 eval_loss = eval_seq_cross_ent_loss+eval_angular_loss
                 
                 tot_eval_loss+= eval_loss.item()
                 tot_eval_acc+= eval_seq_acc.item()
+
+            drmsd_avg_values.append( epoch_avg_rmsd /num_eval_batches_per_epoch )
+            rmsd_avg_values.append( epoch_avg_drmsd /num_eval_batches_per_epoch )
+
+            # plot only the last datapoint from the whole eval epoch! seq is not padded
+            # I dont need to mask the angles because the first in the batch has no padding!
+            print('batch size of the sequences:', len(seqs))
+            s = seqs[0].to(device)
+            print('to pdb ', s.shape, angles[:,0,:].shape, angles_pred[:,0,:].shape)
+            write_to_pdb(get_structure_from_angles(s, angles[:,0,:]), "test")
+            write_to_pdb(get_structure_from_angles(s, angles_pred[:,0,:]), "test_pred")
+
             tot_eval_acc = tot_eval_acc/num_eval_batches_per_epoch
             tot_eval_loss = tot_eval_loss/num_eval_batches_per_epoch
             plot_losses_eval.append(tot_eval_loss)
@@ -161,8 +177,26 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
             if (accuracy/num_batches_per_epoch>best_eval_acc):
                 print('new best eval_accuracy! At:', round(tot_eval_acc,4),' Saving model')
                 best_eval_acc = accuracy/num_batches_per_epoch
-                saveModel(encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, loss.item(), tot_eval_acc, e)
+                saveModel(exp_id, encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, loss.item(), tot_eval_acc, e)
         
+            if not hide_ui:
+                data = {}
+                data["pdb_data_pred"] = open("output/protein_test_pred.pdb","r").read()
+                data["pdb_data_true"] = open("output/protein_test.pdb","r").read()
+                data["validation_dataset_size"] = validation_dataset_size
+                data["num_mini_batches_processed"] = mini_batch_iters
+                data["train_loss_values"] = plot_losses_train
+                data["validation_loss_values"] = plot_losses_eval
+                data["phi_actual"] = list([math.degrees(float(v)) for v in angles[0][1:,1]])
+                data["psi_actual"] = list([math.degrees(float(v)) for v in angles[0][:-1,2]])
+                data["phi_predicted"] = list([math.degrees(float(v)) for v in angles_pred[0][1:,1]])
+                data["psi_predicted"] = list([math.degrees(float(v)) for v in angles_pred[0][:-1,2]])
+                data["drmsd_avg"] = drmsd_avg_values
+                data["rmsd_avg"] = rmsd_avg_values
+                res = requests.post('http://localhost:5000/graph', json=data)
+                if res.ok:
+                    print(res.json())
+
         encoder_net.train()
         decoder_net.train()
         
@@ -182,8 +216,8 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
         
         e +=1
 
-def train_forward(encoder_net, decoder_net, seqs, coords, mask, device, readout=True, teacher_forcing=False, make_preds=False, print_preds=False ):
-  
+def train_forward(encoder_net, decoder_net, seqs, coords, mask, device, readout=True, teacher_forcing=False, make_preds=False, print_preds=False, eval_mode=False ):
+
     seqs, lengths = torch.nn.utils.rnn.pad_packed_sequence(
                     torch.nn.utils.rnn.pack_sequence(seqs))
 
@@ -219,7 +253,10 @@ def train_forward(encoder_net, decoder_net, seqs, coords, mask, device, readout=
         # this was for the original keras model where I needed to repeat vector the latent space. 
         pred_seqs, pred_dihedrals, backbone_atoms_padded, batch_sizes_backbone = decoder_net( latent.view(batch_size,1,-1).expand(-1,max_l.item(),-1))
 
-    #only use the backbone_atoms_padded if I want to calc. drmsd.
+    #only use the backbone_atoms_padded if I want to calc. drmsd. these are the predicted coords! 
+
+    mask, _ = torch.nn.utils.rnn.pad_packed_sequence(
+                        torch.nn.utils.rnn.pack_sequence(mask))
 
     if make_preds:
         return pred_seqs, backbone_atoms_padded
@@ -229,9 +266,28 @@ def train_forward(encoder_net, decoder_net, seqs, coords, mask, device, readout=
         rand_ind = int(torch.rand([1]).item()*batch_size)
         print('ground truth sequence', seqs.max(dim=2)[1][rand_ind,:])
         print('predicted values sequence', pred_seqs.max(dim=2)[1][rand_ind,:])
-    
-    mask, _ = torch.nn.utils.rnn.pad_packed_sequence(
-                        torch.nn.utils.rnn.pack_sequence(mask))
 
+    if eval_mode:
+        dRMSD_list = [] # remove once I parallelize angle calculations!!! 
+        RMSD_list = []  
+        start = time.time()
+        eval_seq_cross_ent_loss, eval_seq_acc, eval_angular_loss = seq_and_angle_loss(pred_seqs, seqs.t(), pred_dihedrals, padded_dihedrals, mask, use_mask=False)
+        # how can I parallelize these calculations?? 
+
+        for tertiary_positions, predicted_backbone_atoms in zip(coords, backbone_atoms_padded.permute([1,0,2])):
+            to_remove_padding =  tertiary_positions.shape[0]
+            actual_coords = tertiary_positions.transpose(0,1).contiguous().view(-1,3)
+            predicted_coords = predicted_backbone_atoms[:to_remove_padding].contiguous().view(-1,3).detach()
+            #print('shapes of coords', actual_coords.shape, predicted_coords.shape)
+            rmsd = calc_rmsd(predicted_coords, actual_coords)
+            drmsd = calc_drmsd(predicted_coords, actual_coords, device)
+            RMSD_list.append(rmsd)
+            dRMSD_list.append(drmsd)
+
+        end = time.time()
+        write_out("Calculating all validation losses for minibatch took:", end - start)
+
+        return torch.Tensor(RMSD_list).mean().item(), torch.Tensor(dRMSD_list).mean().item(), eval_seq_cross_ent_loss, eval_seq_acc, eval_angular_loss, pred_dihedrals, padded_dihedrals
+    
     # feed in the sequence length for each example and the truth
     return seq_and_angle_loss(pred_seqs, seqs.t(), pred_dihedrals, padded_dihedrals, mask, use_mask=False)

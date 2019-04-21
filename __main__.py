@@ -39,13 +39,14 @@ args, unknown = parser.parse_known_args()
 if args.hide_ui:
     write_out("Live plot deactivated, see output folder for plot.")'''
 
-# start web server
+# start web server ==============
+
 #start_dashboard_server()
 
 # WRONG FILEI FOR TRAINING FOR NOW!! 
 variant = '_trimmed'
-training_file = "data/preprocessed/training_100"+variant+".hdf5"
-validation_file = "data/preprocessed/validation"+variant+".hdf5"
+training_file = "data/preprocessed/testing"+variant+".hdf5"
+validation_file = "data/preprocessed/testing"+variant+".hdf5"
 testing_file = "data/preprocessed/testing"+variant+".hdf5"
 
 ENCODING_LSTM_OUTPUT=300
@@ -67,11 +68,12 @@ readout=False
 allow_teacher_force = False
 teaching_strategy = 'epoch' # can also be 'accuracy'
 want_preds_printed = False
+hide_ui = True
 
 encoder_net = EncoderNet(device, ENCODING_LSTM_OUTPUT=ENCODING_LSTM_OUTPUT, CODE_LAYER_SIZE=CODE_LAYER_SIZE, 
-                         VOCAB_SIZE=VOCAB_SIZE, ENCODER_LSTM_NUM_LAYERS=ENCODER_LSTM_NUM_LAYERS).to(device)
+                        VOCAB_SIZE=VOCAB_SIZE, ENCODER_LSTM_NUM_LAYERS=ENCODER_LSTM_NUM_LAYERS).to(device)
 decoder_net = DecoderNet(device, DECODING_LSTM_OUTPUT=DECODING_LSTM_OUTPUT, CODE_LAYER_SIZE=CODE_LAYER_SIZE, 
-                         VOCAB_SIZE=VOCAB_SIZE, DECODER_LSTM_NUM_LAYERS=DECODER_LSTM_NUM_LAYERS).to(device)
+                        VOCAB_SIZE=VOCAB_SIZE, DECODER_LSTM_NUM_LAYERS=DECODER_LSTM_NUM_LAYERS).to(device)
 
 encoder_optimizer = optim.Adam(encoder_net.parameters(), lr=learning_rate)
 decoder_optimizer = optim.Adam(decoder_net.parameters(), lr=learning_rate)
@@ -105,7 +107,7 @@ encoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(encoder_optimizer, 'max
 decoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(decoder_optimizer, 'max', factor=0.5, patience=10, verbose=True, threshold=0.0001  )
     
 fitModel(encoder_net, decoder_net, encoder_optimizer, decoder_optimizer, 
-         BATCH_SIZE, epochs, curr_ep, learning_rate, mem_pin, device, 
-         save_name, load_name, readout, allow_teacher_force, teaching_strategy, 
-         clip, want_preds_printed, encoder_scheduler, decoder_scheduler,
-         training_file, validation_file, testing_file )
+        BATCH_SIZE, epochs, curr_ep, learning_rate, mem_pin, device, 
+        save_name, load_name, readout, allow_teacher_force, teaching_strategy, 
+        clip, want_preds_printed, encoder_scheduler, decoder_scheduler,
+        training_file, validation_file, testing_file, hide_ui)

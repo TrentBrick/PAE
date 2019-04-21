@@ -5,23 +5,24 @@ import numpy as np
 from datetime import datetime
 import time
 
-def seq_and_angle_loss(pred_seqs, seqs, pred_dihedrals, padded_dihedrals, mask, VOCAB_SIZE=21, use_mask=False):
+def seq_and_angle_loss(pred_seqs, padded_seqs, pred_dihedrals, padded_dihedrals, mask, VOCAB_SIZE=21, use_mask=False):
+    # Everything is padded here! 
     if not use_mask:
         mask = torch.ones(mask.shape).byte()
     # GET TUTORIAL FROM MEDIUM!!
     '''criterion = torch.nn.NLLLoss(size_average=True, ignore_index=-1)
-    loss=  criterion(pred_seqs.permute([0,2,1]).contiguous(), seqs.max(dim=2)[1])'''
+    loss=  criterion(pred_seqs.permute([0,2,1]).contiguous(),padded_seqs.max(dim=2)[1])'''
     #get cross entropy just padding at the end!
     criterion = torch.nn.NLLLoss(size_average=True, ignore_index=0)
-    seq_cross_ent_loss = criterion(pred_seqs.permute([0,2,1]).contiguous(), seqs)
+    seq_cross_ent_loss = criterion(pred_seqs.permute([0,2,1]).contiguous(),padded_seqs)
     # flatten all the labels
-    seqs = seqs.flatten()
+    padded_seqs =padded_seqs.flatten()
     pred_seqs = pred_seqs.view(-1, VOCAB_SIZE)
-    seq_mask = (seqs > 0).float() # this is just the padding at the end! 
+    seq_mask = (padded_seqs > 0).float() # this is just the padding at the end! 
     nb_tokens = int(torch.sum(seq_mask).item())
     #get accuracy
     top_preds = pred_seqs.max(dim=1)[1]
-    seq_acc = torch.sum( torch.eq(top_preds, seqs).type(torch.float)*seq_mask) / nb_tokens
+    seq_acc = torch.sum( torch.eq(top_preds,padded_seqs).type(torch.float)*seq_mask) / nb_tokens
     
     #loss for the angles, apply the mask to padding and uncertain coordinates!
     mask = mask.view(mask.shape[0],mask.shape[1], 1).expand(-1,-1,3)
@@ -37,9 +38,9 @@ def printParamNum(encoder_net, decoder_net):
         params += sum([np.prod(p.size()) for p in net.parameters()])
     print('total model parameters: ',params)
 
-def saveModel(encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, train_loss, eval_acc, e):
-    for name, net, optim in zip(['encoder_save','decoder_save'],[encoder_net, decoder_net],[encoder_optimizer, decoder_optimizer] ):
-        path = "output/models/"+globals().get("experiment_id")+name+".tar"
+def saveModel(exp_id, encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, train_loss, eval_acc, e):
+    for name, net, optim in zip(['encoder_save','decoder_save'],[encoder_net, decoder_net],[encoder_optimizer, decoder_optimizer]):
+        path = "output/models/"+exp_id+".tar"
         torch.save({
                     'epoch': e,
                     'model_state_dict': net.state_dict(),

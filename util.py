@@ -14,7 +14,8 @@ import math
 from datetime import datetime
 import numpy as np
 import pnerf.pnerf as pnerf
-from TorchProteinLibrary import RMSD
+import platform
+#from TorchProteinLibrary import RMSD
 
 from torch.utils.data import Sampler, Dataset
 from collections import OrderedDict
@@ -28,8 +29,12 @@ def contruct_dataloader_from_disk(filename, minibatch_size):
     # may want to pre generate ind_n_len with another function and then feed this into the BatchSampler direct
     ind_n_len = H5PytorchDataset(filename).sequences()   
     bucket_batch_sampler = BucketBatchSampler(ind_n_len, minibatch_size) # <-- does not store X
+    if platform.system() is 'Windows':
+        num_workers = 0
+    else:
+        num_workers = 8
     return torch.utils.data.DataLoader(H5PytorchDataset(filename), batch_size=1, batch_sampler= bucket_batch_sampler,
-                                       shuffle=False, num_workers=0, 
+                                       shuffle=False, num_workers=num_workers, 
                                        collate_fn=H5PytorchDataset.sort_samples_in_minibatch,
                                        drop_last=False)
 
@@ -121,9 +126,10 @@ class BucketBatchSampler(Sampler):
 def set_experiment_id(data_set_identifier, learning_rate, minibatch_size):
     output_string = datetime.now().strftime('%Y-%m-%d_%H_%M_%S')
     output_string += "-" + data_set_identifier
-    output_string += "-LR" + str(learning_rate).replace(".","_")
+    output_string += "LR" + str(learning_rate).replace(".","_")
     output_string += "-MB" + str(minibatch_size)
     globals().__setitem__("experiment_id",output_string)
+    return output_string
 
 def write_out(*args, end='\n'):
     output_string = datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ": " + str.join(" ", [str(a) for a in args]) + end
@@ -133,7 +139,7 @@ def write_out(*args, end='\n'):
             output_file.flush()
     print(output_string, end="")
 
-def evaluate_model(data_loader, model):
+'''def evaluate_model(data_loader, model):
     loss = 0
     data_total = []
     dRMSD_list = []
@@ -164,7 +170,7 @@ def evaluate_model(data_loader, model):
         write_out("Calculate validation loss for minibatch took:", end - start)
     loss /= data_loader.dataset.__len__()
     return (loss, data_total, float(torch.Tensor(RMSD_list).mean()), float(torch.Tensor(dRMSD_list).mean()))
-
+'''
 '''def write_model_to_disk(model):
     path = "output/models/"+globals().get("experiment_id")+".model"
     torch.save(model,path)
@@ -288,9 +294,9 @@ def calc_drmsd(chain_a, chain_b, device):
     return torch.norm(distance_matrix_a - distance_matrix_b, 2) \
             / math.sqrt((len(chain_a) * (len(chain_a) - 1)))
 
-def least_rmsd(src, ref, num_atoms):
+'''def least_rmsd(src, ref, num_atoms):
     rmsd = RMSD.Coords2RMSD().cuda()
-    return rmsd(src, ref, num_atoms)
+    return rmsd(src, ref, num_atoms)'''
 
 # method for translating a point cloud to its center of mass
 def transpose_atoms_to_center_of_mass(x):

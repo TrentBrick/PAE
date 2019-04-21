@@ -140,7 +140,7 @@ def process_file(input_file, output_file, device, want_trimmed, want_pure):
         pos = pos.to(device)
 
         angles, batch_sizes = calculate_dihedral_angles_over_minibatch(pos, [len(prim)], device)
-        # this must be what is creating the nans!! 
+        # this must be what is creating the nans!! Not clear to me why...
         tertiary, _ = get_backbone_positions_from_angular_prediction(angles, batch_sizes, device)
         tertiary = tertiary.squeeze(1)
 
