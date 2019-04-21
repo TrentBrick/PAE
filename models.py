@@ -3,8 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import math
-from util import embed, calculate_dihedral_angles_over_minibatch, get_backbone_positions_from_angular_prediction
-
+from util import calculate_dihedral_angles_over_minibatch, get_backbone_positions_from_angular_prediction
+from nn_util import embed
 class EncoderNet(nn.Module):
     def __init__(self, device, ENCODING_LSTM_OUTPUT=100, CODE_LAYER_SIZE=50, VOCAB_SIZE=21, ENCODER_LSTM_NUM_LAYERS=2 ):
         super(EncoderNet, self).__init__()
@@ -28,10 +28,10 @@ class EncoderNet(nn.Module):
         
         #Now dealing with the tertiary structure!! Convert coords to dihedral angles. 
         # None here is because this is not padded and I dont want to give it a batch size.
-        print('pre dihedral', tert)
+        #print('pre dihedral', tert)
         tert_angles = calculate_dihedral_angles_over_minibatch(tert, None, self.device, is_padded=False) 
         # convert this into a packed sequence! 
-        print('pre packing', tert_angles)
+        #print('pre packing', tert_angles)
         packed_tert_angles = torch.nn.utils.rnn.pack_sequence(tert_angles)
         #this is to return for the loss function, the real dihedral angles: 
         padded_real_angles, _ = torch.nn.utils.rnn.pad_packed_sequence(packed_tert_angles)
@@ -44,7 +44,7 @@ class EncoderNet(nn.Module):
         res = torch.cat( (seq_hidden_means, tert_hidden_means), dim=1)       
         res = self.batchnorm(res)
         res = self.dense2_enc(F.elu(self.dense1_enc(res))) # used to have F.tanh here!
-        print('after dense layers', res, res.shape) 
+        #print('after dense layers', res, res.shape) 
         # out_padded are the dihedral angles for the structure!! 
         return res, padded_real_angles
 

@@ -8,13 +8,13 @@ import torch
 import torch.utils.data
 import torch.nn.utils.rnn as rnn_utils
 import h5py
-from datetime import datetime
 import PeptideBuilder
 import Bio.PDB
 import math
+from datetime import datetime
 import numpy as np
-import time
 import pnerf.pnerf as pnerf
+from TorchProteinLibrary import RMSD
 
 from torch.utils.data import Sampler, Dataset
 from collections import OrderedDict
@@ -39,6 +39,7 @@ class H5PytorchDataset(torch.utils.data.Dataset):
 
         self.h5pyfile = h5py.File(filename, 'r')
         self.num_proteins, self.max_sequence_len = self.h5pyfile['primary'].shape
+        print('number of proteins in this dataset', filename, self.num_proteins, self.max_sequence_len)
 
     def __getitem__(self, index):
         # this mask gets rid of the padding that is added during the preprocessing step.
@@ -47,8 +48,10 @@ class H5PytorchDataset(torch.utils.data.Dataset):
         mask = torch.masked_select(torch.Tensor(self.h5pyfile['mask'][index,:]).type(dtype=torch.uint8), padding_mask)
         # I need to apply the mask select here but only to the end padding!
         prim = torch.masked_select(torch.Tensor(self.h5pyfile['primary'][index,:]).type(dtype=torch.long), padding_mask)
-        print(torch.Tensor(self.h5pyfile['tertiary']))
         tertiary = torch.Tensor(self.h5pyfile['tertiary'][index][:int(padding_mask.sum())]) # max length x 9
+        '''if torch.isnan(tertiary).sum() >0:
+            print('there is a nan in dataloader!!!', tertiary)
+            print('the mask', mask)'''
         return  prim, tertiary, mask
 
     def __len__(self):
@@ -115,14 +118,6 @@ class BucketBatchSampler(Sampler):
         for i in self.batch_list:
             yield i
 
-
-def printParamNum(encoder_net, decoder_net):
-    params=0
-    for net in [encoder_net, decoder_net]:
-        model_parameters = filter(lambda p: p.requires_grad, net.parameters())
-        params += sum([np.prod(p.size()) for p in net.parameters()])
-    print('total model parameters: ',params)
-
 def set_experiment_id(data_set_identifier, learning_rate, minibatch_size):
     output_string = datetime.now().strftime('%Y-%m-%d_%H_%M_%S')
     output_string += "-" + data_set_identifier
@@ -169,93 +164,6 @@ def evaluate_model(data_loader, model):
         write_out("Calculate validation loss for minibatch took:", end - start)
     loss /= data_loader.dataset.__len__()
     return (loss, data_total, float(torch.Tensor(RMSD_list).mean()), float(torch.Tensor(dRMSD_list).mean()))
-
-
-def saveModel(encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, train_loss, eval_acc, e):
-    for name, net, optim in zip(['encoder_save','decoder_save'],[encoder_net, decoder_net],[encoder_optimizer, decoder_optimizer] ):
-        path = "output/models/"+globals().get("experiment_id")+name+".tar"
-        torch.save({
-                    'epoch': e,
-                    'model_state_dict': net.state_dict(),
-                    'optimizer_state_dict': optim.state_dict(),
-                    'last_loss': train_loss,
-                    'eval_accuracy':eval_acc
-                    }, path)
-    print('saveModel worked')
-    return path
-
-def loadModel(encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, load_name, ignore_optim=False):
-    #ignore optim is for when I am loading in a model to assess predictions and not training it anymore. 
-    for name, net, optim in zip(['encoder_save','decoder_save'],[encoder_net, decoder_net],[encoder_optimizer, decoder_optimizer] ):
-        checkpoint = torch.load(load_name+name+'.tar')
-        state = checkpoint['model_state_dict'] #.state_dict()
-        #state.update(net.state_dict())
-        net.load_state_dict(state)#checkpoint['model_state_dict'])
-        if not ignore_optim:
-            optim.load_state_dict(checkpoint['optimizer_state_dict'])
-        e = checkpoint['epoch']
-        loss = checkpoint['last_loss']
-        best_eval_acc = checkpoint['eval_accuracy']
-    print('loaded in previous model!')
-    return encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, loss, e, best_eval_acc
-
-def init_weights(m):
-    if type(m) == torch.nn.Linear:
-        torch.nn.init.xavier_uniform_(m.weight, gain=torch.nn.init.calculate_gain('relu'))
-        m.bias.data.fill_(0.01)
-    elif type(m) == torch.nn.LSTM:
-        for name, param in m.named_parameters():
-            if 'weight' in name:
-                torch.nn.init.xavier_uniform_(param, gain=torch.nn.init.calculate_gain('tanh'))
-            if 'bias' in name:
-                param = torch.zeros(param.shape)
-
-def save_weights(m):
-    save_init_weights = dict()
-    for name, param in m.named_parameters():
-        save_init_weights[name] = param
-    return save_init_weights
-
-def embed(data, batch_sizes, device):
-    
-    # one-hot encoding
-    start_compute_embed = time.time()
-    prot_aa_list = data.unsqueeze(1)
-    embed_tensor = torch.zeros(prot_aa_list.size(0), 21, prot_aa_list.size(2)).to(device) # 21 classes
-    #prot_aa_list.to(device) #should already be embedded. 
-    input_sequences = embed_tensor.scatter_(1, prot_aa_list.data, 1).transpose(1,2)
-    end = time.time()
-    write_out("Embed time:", end - start_compute_embed)
-    packed_input_sequences = rnn_utils.pack_padded_sequence(input_sequences, batch_sizes)
-    return packed_input_sequences
-
-def seq_and_angle_loss(pred_seqs, seqs, pred_dihedrals, padded_dihedrals, mask, VOCAB_SIZE=21):
-    # GET TUTORIAL FROM MEDIUM!!
-    '''criterion = torch.nn.NLLLoss(size_average=True, ignore_index=-1)
-    loss=  criterion(pred_seqs.permute([0,2,1]).contiguous(), seqs.max(dim=2)[1])'''
-    #get cross entropy just padding at the end!
-    criterion = torch.nn.NLLLoss(size_average=True, ignore_index=0)
-    print('pred seqs', pred_seqs.permute([0,2,1]).contiguous())
-    print('real seqs', seqs)
-    seq_cross_ent_loss = criterion(pred_seqs.permute([0,2,1]).contiguous(), seqs)
-    # flatten all the labels
-    seqs = seqs.flatten()
-    pred_seqs = pred_seqs.view(-1, VOCAB_SIZE)
-    seq_mask = (seqs > 0).float() # this is just the padding at the end! 
-    nb_tokens = int(torch.sum(seq_mask).item())
-    #get accuracy
-    top_preds = pred_seqs.max(dim=1)[1]
-    seq_acc = torch.sum( torch.eq(top_preds, seqs).type(torch.float)*seq_mask) / nb_tokens
-    
-    #loss for the angles, apply the mask to padding and uncertain coordinates!
-    mask = mask.view(mask.shape[0],mask.shape[1], 1).expand(-1,-1,3)
-    angular_loss = calc_angular_difference(torch.masked_select(pred_dihedrals, mask), 
-            torch.masked_select(torch.Tensor(padded_dihedrals), mask))
-
-    print(seq_cross_ent_loss, seq_acc, angular_loss)
-
-    return seq_cross_ent_loss, seq_acc, angular_loss
-    
 
 '''def write_model_to_disk(model):
     path = "output/models/"+globals().get("experiment_id")+".model"
@@ -328,6 +236,7 @@ def calculate_dihedral_angles(atomic_coords, device):
 
 def compute_dihedral_list(atomic_coords):
     # atomic_coords is -1 x 3
+    # https://math.stackexchange.com/questions/47059/how-do-i-calculate-a-dihedral-angle-given-cartesian-coordinates 
     ba = atomic_coords[1:] - atomic_coords[:-1]
     ba /= ba.norm(dim=1).unsqueeze(1)
     ba_neg = -1 * ba
@@ -379,6 +288,10 @@ def calc_drmsd(chain_a, chain_b, device):
     return torch.norm(distance_matrix_a - distance_matrix_b, 2) \
             / math.sqrt((len(chain_a) * (len(chain_a) - 1)))
 
+def least_rmsd(src, ref, num_atoms):
+    rmsd = RMSD.Coords2RMSD().cuda()
+    return rmsd(src, ref, num_atoms)
+
 # method for translating a point cloud to its center of mass
 def transpose_atoms_to_center_of_mass(x):
     # calculate com by summing x, y and z respectively
@@ -408,7 +321,10 @@ def calc_rmsd(chain_a, chain_b):
 
 def calc_angular_difference(a1, a2):
     # MSE between the angles. Need to look into the min equation... 
-    sum = torch.sqrt(torch.mean(a1-a2) ** 2)
+    sum = torch.sqrt(torch.mean(
+            torch.min(torch.abs(a1 - a2),
+                      2 * math.pi - torch.abs(a2 - a1)
+                      ) ** 2))
     '''a1 = a1.transpose(0,1).contiguous()
     a2 = a2.transpose(0,1).contiguous()
     sum = 0

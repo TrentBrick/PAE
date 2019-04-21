@@ -14,6 +14,7 @@ from dashboard import start_dashboard_server
 from trainer import *
 from models import *
 from util import *
+from nn_util import * 
 
 import torch.optim as optim
 
@@ -42,9 +43,10 @@ if args.hide_ui:
 #start_dashboard_server()
 
 # WRONG FILEI FOR TRAINING FOR NOW!! 
-training_file = "data/preprocessed/testing.hdf5"
-validation_file = "data/preprocessed/validation.hdf5"
-testing_file = "data/preprocessed/testing.hdf5"
+variant = '_trimmed'
+training_file = "data/preprocessed/training_100"+variant+".hdf5"
+validation_file = "data/preprocessed/validation"+variant+".hdf5"
+testing_file = "data/preprocessed/testing"+variant+".hdf5"
 
 ENCODING_LSTM_OUTPUT=300
 CODE_LAYER_SIZE=200

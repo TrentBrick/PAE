@@ -2,6 +2,7 @@
 import torch 
 from util import *
 from models import *
+from nn_util import * 
 import pickle
 
 def fitModel(encoder_net, decoder_net, encoder_optimizer, 
@@ -130,8 +131,6 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
         print('Total loss for epoch ',e, 'is: ', round(ep_loss ,4))
 
         if (e % print_every == 0):
-            #print('mini batch count', mini_batch_iters)
-            #print('number of batches per ep', num_batches_per_epoch)
             print_loss_avg = (print_loss_total / print_every) / num_batches_per_epoch
             plot_losses_train.append(print_loss_avg)
             print_loss_total = 0
@@ -162,7 +161,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
             if (accuracy/num_batches_per_epoch>best_eval_acc):
                 print('new best eval_accuracy! At:', round(tot_eval_acc,4),' Saving model')
                 best_eval_acc = accuracy/num_batches_per_epoch
-                saveModel(encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, save_name, loss.item(), tot_eval_acc, e)
+                saveModel(encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, loss.item(), tot_eval_acc, e)
         
         encoder_net.train()
         decoder_net.train()
@@ -203,7 +202,6 @@ def train_forward(encoder_net, decoder_net, seqs, coords, mask, device, readout=
             latent = latent.view(latent.shape[0],1,latent.shape[1])
             for t in range(max_l):
                 prev_out, hidden = decoder_net(latent, prev_out, hidden)
-                #print('is prev out requires grad? ', prev_out.requires_grad)
                 batch_outs[:,t,:]= prev_out.squeeze()
                 prev_out = prev_out.max(dim=2, keepdim=True)[1].to(torch.float32)
                 
@@ -212,8 +210,6 @@ def train_forward(encoder_net, decoder_net, seqs, coords, mask, device, readout=
             ground_truth = seqs.max(dim=2, keepdim=True)[1][:,:-1,:]
             #prev_out = input[0].max(dim=2, keepdim=True)[1].to(torch.float32).to(device) # this was just seeing if the model would learn. 
             prev_out = torch.cat( (torch.zeros([ground_truth.shape[0], 1, 1]), ground_truth.to(torch.float32) ) ,1).to(device) #as both tensors should already be in cuda!
-            #print('shape of prev out', prev_out.shape)
-            #print('what does prev out look like? arranged right?', prev_out[0,:,:])
             batch_outs, hidden = decoder_net(latent, prev_out, hidden)
         # add zero padding to the end. Dont need to do as I am computing each batch now. 
         #batch_outs[b_ind,:,:].add_( torch.cat( ( seq_outs, torch.zeros([ (max_l-length) ,VOCAB_SIZE] , device=device, requires_grad=False) ) , 0))
@@ -221,7 +217,6 @@ def train_forward(encoder_net, decoder_net, seqs, coords, mask, device, readout=
     else: 
         #prev_out = torch.zeros([batch_size,max_l.item(), 1], device=device, requires_grad=False)
         # this was for the original keras model where I needed to repeat vector the latent space. 
-        print('latent space',latent)
         pred_seqs, pred_dihedrals, backbone_atoms_padded, batch_sizes_backbone = decoder_net( latent.view(batch_size,1,-1).expand(-1,max_l.item(),-1))
 
     #only use the backbone_atoms_padded if I want to calc. drmsd.
@@ -239,4 +234,4 @@ def train_forward(encoder_net, decoder_net, seqs, coords, mask, device, readout=
                         torch.nn.utils.rnn.pack_sequence(mask))
 
     # feed in the sequence length for each example and the truth
-    return seq_and_angle_loss(pred_seqs, seqs.t(), pred_dihedrals, padded_dihedrals, mask)
+    return seq_and_angle_loss(pred_seqs, seqs.t(), pred_dihedrals, padded_dihedrals, mask, use_mask=False)
