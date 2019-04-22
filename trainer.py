@@ -41,7 +41,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
     num_batches_per_epoch = int(train_dataset_size/BATCH_SIZE)
     num_eval_batches_per_epoch = int(validation_dataset_size/BATCH_SIZE)
     accuracy=0.05*num_batches_per_epoch # need it for my teacher forcing calc. 
-    best_eval_acc = 0.0
+    best_train_loss = 100000
     print('approximate num of train batches per ep', num_batches_per_epoch)
     # how often to print minibatch loss
     print_mini_every = 100
@@ -178,9 +178,9 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
             sample_num.append(mini_batch_iters)
             print('Eval Loss average per batch: %.4f Accuracy: %.4f' % (tot_eval_loss, tot_eval_acc) ) 
             #right now this is actually train accuracy just because I want to overfit!!! 
-            if (accuracy/num_batches_per_epoch>best_eval_acc):
-                print('new best eval_accuracy! At:', round(tot_eval_acc,4),' Saving model')
-                best_eval_acc = accuracy/num_batches_per_epoch
+            if (print_loss_avg<best_train_loss):
+                print('new best train loss! At:', round(print_loss_avg,4),' Saving model')
+                best_train_loss = print_loss_avg
                 saveModel(exp_id, encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, loss.item(), tot_eval_acc, e)
         
             if not hide_ui:

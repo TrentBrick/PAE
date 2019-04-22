@@ -124,7 +124,7 @@ class DecoderNet(nn.Module):
         # # just predicting dihedrals directly. Then try to scale them to be between +/-pi
         # # then try using atan2
 
-        output_angles = math.pi* F.tanh(self.latent_to_dihedral2(F.elu(self.latent_to_dihedral1(prev_out)))).permute([1,0,2]) # max size, minibatch size, 3 (angels)
+        output_angles = np.pi* F.tanh(self.latent_to_dihedral2(F.elu(self.latent_to_dihedral1(prev_out)))).permute([1,0,2]) # max size, minibatch size, 3 (angels)
         #print('output angles shape::: ', output_angles.shape)
         ###print('output angles::: ', output_angles)
         # weird angle mixture model thing. 
