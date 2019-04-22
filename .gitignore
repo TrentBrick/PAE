@@ -1,6 +1,10 @@
 casp12/
-data/raw/
-data/preprocessed/
+data/
+!data/preprocessed/
+data/preprocessed/*
 TorchProteinLibrary/
 !data/preprocessed/testing_trimmed.hdf5
 !data/preprocessed/validation_trimmed.hdf5
+
+
+
