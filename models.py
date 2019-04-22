@@ -14,7 +14,7 @@ class EncoderNet(nn.Module):
         self.META_ENCODING_LSTM_OUTPUT = META_ENCODING_LSTM_OUTPUT
         self.encoder_seq = nn.LSTM(input_size=VOCAB_SIZE, hidden_size= self.ENCODING_LSTM_OUTPUT,num_layers=self.LSTM_NUM_LAYERS,bidirectional=True, batch_first=False)
         self.encoder_tert = nn.LSTM(input_size=3, hidden_size= self.ENCODING_LSTM_OUTPUT,num_layers=self.LSTM_NUM_LAYERS,bidirectional=True, batch_first=False)
-        self.encoder_meta = nn.LSTM(input_size=self.ENCODING_LSTM_OUTPUT*4, hidden_size= self.META_ENCODING_LSTM_OUTPUT,num_layers=self.LSTM_NUM_LAYERS,bidirectional=True, batch_first=False)
+        self.encoder_meta = nn.LSTM(input_size=self.ENCODING_LSTM_OUTPUT*4, hidden_size= self.META_ENCODING_LSTM_OUTPUT,num_layers=1,bidirectional=True, batch_first=False)
         self.batchnorm = nn.BatchNorm1d(self.META_ENCODING_LSTM_OUTPUT * 2) # as bidirectional LSTMS, 2 of them. 
         self.dense1_enc = nn.Linear(in_features=(self.META_ENCODING_LSTM_OUTPUT*2 ), out_features=CODE_LAYER_SIZE ) # * self.LSTM_NUM_LAYERS because it is bidirectional
         self.dense2_enc = nn.Linear(in_features=CODE_LAYER_SIZE, out_features=CODE_LAYER_SIZE )
@@ -28,7 +28,6 @@ class EncoderNet(nn.Module):
         # commented out so I can add the meta LSTM. need to unpack also!!  
         out_padded_seq, lengths = torch.nn.utils.rnn.pad_packed_sequence(packed_output)
         #seq_hidden_means = torch.sum(out_padded, dim=0) / lengths.view(-1,1).expand(-1, self.ENCODING_LSTM_OUTPUT*2).type(torch.float)
-        
         #Now dealing with the tertiary structure!! Convert coords to dihedral angles. 
         # None here is because this is not padded and I dont want to give it a batch size.
         #print('pre dihedral', tert)
@@ -127,7 +126,7 @@ class DecoderNet(nn.Module):
 
         output_angles = math.pi* F.tanh(self.latent_to_dihedral2(F.elu(self.latent_to_dihedral1(prev_out)))).permute([1,0,2]) # max size, minibatch size, 3 (angels)
         #print('output angles shape::: ', output_angles.shape)
-        print('output angles::: ', output_angles)
+        ###print('output angles::: ', output_angles)
         # weird angle mixture model thing. 
         '''x = self.hidden_to_labels(prev_out)
         x = self.bn(x.permute([0,2,1])).permute([0,2,1]).contiguous()
