@@ -28,8 +28,11 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
     drmsd_avg_values = list()
 
     start = time.time()
+    rand_protein_to_display = int(np.random.rand(1)[0] *5)
+    print('rand protein to display', rand_protein_to_display)
     plot_losses_train = []
     plot_losses_eval = []
+    sample_num=[]
     print_loss_total = 0 
     plot_loss_total = 0
     running_loss = 0
@@ -164,13 +167,14 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
 
             # plot only the last datapoint from the whole eval epoch! seq is not padded
             # I dont need to mask the angles because the first in the batch has no padding!
-            s = seqs[0].to(device)
-            write_to_pdb(get_structure_from_angles(s, angles[:,0,:]), "test")
-            write_to_pdb(get_structure_from_angles(s, angles_pred[:,0,:]), "test_pred")
+            s = seqs[rand_protein_to_display].to(device)
+            write_to_pdb(get_structure_from_angles(s, angles[:,rand_protein_to_display,:][:s.shape[0]]), "test")
+            write_to_pdb(get_structure_from_angles(s, angles_pred[:,rand_protein_to_display,:][:s.shape[0]]), "test_pred")
 
             tot_eval_acc = tot_eval_acc/num_eval_batches_per_epoch
             tot_eval_loss = tot_eval_loss/num_eval_batches_per_epoch
             plot_losses_eval.append(tot_eval_loss)
+            sample_num.append(mini_batch_iters)
             print('Eval Loss average per batch: %.4f Accuracy: %.4f' % (tot_eval_loss, tot_eval_acc) ) 
             #right now this is actually train accuracy just because I want to overfit!!! 
             if (accuracy/num_batches_per_epoch>best_eval_acc):
@@ -183,7 +187,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
                 data["pdb_data_pred"] = open("output/protein_test_pred.pdb","r").read()
                 data["pdb_data_true"] = open("output/protein_test.pdb","r").read()
                 data["validation_dataset_size"] = validation_dataset_size
-                data["sample_num"] = mini_batch_iters
+                data["sample_num"] = sample_num
                 data["train_loss_values"] = plot_losses_train
                 data["validation_loss_values"] = plot_losses_eval
                 data["phi_actual"] = list([math.degrees(float(v)) for v in angles[0][1:,1]])
@@ -285,7 +289,7 @@ def train_forward(encoder_net, decoder_net, seqs, coords, mask, device, readout=
         end = time.time()
         write_out("Calculating all validation losses for minibatch took:", end - start)
 
-        return torch.Tensor(RMSD_list).mean().item(), torch.Tensor(dRMSD_list).mean().item(), eval_seq_cross_ent_loss, eval_seq_acc, eval_angular_loss, pred_dihedrals, padded_dihedrals
+        return torch.Tensor(RMSD_list).mean().item(), torch.Tensor(dRMSD_list).mean().item(), eval_seq_cross_ent_loss, eval_seq_acc, eval_angular_loss, padded_dihedrals, pred_dihedrals
     
     # feed in the sequence length for each example and the truth
     return seq_and_angle_loss(pred_seqs, seqs.t(), pred_dihedrals, padded_dihedrals, mask, use_mask=False)

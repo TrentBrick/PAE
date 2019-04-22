@@ -57,11 +57,11 @@ class App extends React.Component<IAppProb, IAppProb> {
           <div style={{display: "grid" , height: "100vh",}}>
               <div style={headerStyle}>
                   <div style={{gridColumn: 1, color: "white", textAlign: "left", marginLeft:"20px"}}>
-                      <h1 className="App-title">OpenProtein</h1>
+                      <h1 className="App-title">Protein AutoEncoder for Design</h1>
                   </div>
                   <div style={{gridColumn: 2, color: "white", textAlign: "right"}}>
                       <div style={{margin: "20px", color: "white", fontSize:"10pt"}}>
-                          <a style={{color: "white", textDecoration:"none"}} href="https://github.com/openprotein">View OpenProtein on Github</a>
+                          Produced by Trenton Bricken
                       </div>
                   </div>
               </div>
@@ -78,7 +78,7 @@ class App extends React.Component<IAppProb, IAppProb> {
                   </div>
                   <div style={{gridColumn: 2, color: "white", textAlign: "right"}}>
                       <div style={{margin: "20px", color: "lightgrey", fontSize:"10pt"}}>
-                          © 2019 OpenProtein, all rights reserved
+                          Support from OpenProtein, ProteinNet, TorchProteinLibrary and PyTorch amongst many other packages!
                       </div>
                   </div>
               </div>
