@@ -54,26 +54,27 @@ def main():
     testing_file = "data/preprocessed/testing"+variant+".hdf5"
 
     ENCODING_LSTM_OUTPUT=300
+    META_ENCODING_LSTM_OUTPUT=150
     CODE_LAYER_SIZE=200
     DECODING_LSTM_OUTPUT=300
     VOCAB_SIZE=21
-    ENCODER_LSTM_NUM_LAYERS=1
-    DECODER_LSTM_NUM_LAYERS=1
+    ENCODER_LSTM_NUM_LAYERS=2
+    DECODER_LSTM_NUM_LAYERS=2
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
 
     mem_pin = False
     BATCH_SIZE = 32
     epochs = 500
     curr_ep = 1 # cant be 0 else later on there is division by zero!
-    learning_rate=0.001
+    learning_rate=0.0001
     clip=30
 
     readout=False
     allow_teacher_force = False
     teaching_strategy = 'epoch' # can also be 'accuracy'
-    want_preds_printed = False
+    want_preds_printed = True
 
-    encoder_net = EncoderNet(device, ENCODING_LSTM_OUTPUT=ENCODING_LSTM_OUTPUT, CODE_LAYER_SIZE=CODE_LAYER_SIZE, 
+    encoder_net = EncoderNet(device, ENCODING_LSTM_OUTPUT=ENCODING_LSTM_OUTPUT, META_ENCODING_LSTM_OUTPUT=META_ENCODING_LSTM_OUTPUT, CODE_LAYER_SIZE=CODE_LAYER_SIZE, 
                             VOCAB_SIZE=VOCAB_SIZE, ENCODER_LSTM_NUM_LAYERS=ENCODER_LSTM_NUM_LAYERS).to(device)
     decoder_net = DecoderNet(device, DECODING_LSTM_OUTPUT=DECODING_LSTM_OUTPUT, CODE_LAYER_SIZE=CODE_LAYER_SIZE, 
                             VOCAB_SIZE=VOCAB_SIZE, DECODER_LSTM_NUM_LAYERS=DECODER_LSTM_NUM_LAYERS).to(device)

@@ -9,7 +9,6 @@ def seq_and_angle_loss(pred_seqs, padded_seqs, pred_dihedrals, padded_dihedrals,
     # Everything is padded here! 
     if not use_mask:
         mask = torch.ones(mask.shape).byte()
-    # GET TUTORIAL FROM MEDIUM!!
     '''criterion = torch.nn.NLLLoss(size_average=True, ignore_index=-1)
     loss=  criterion(pred_seqs.permute([0,2,1]).contiguous(),padded_seqs.max(dim=2)[1])'''
     #get cross entropy just padding at the end!

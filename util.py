@@ -21,7 +21,8 @@ from torch.utils.data import Sampler, Dataset
 from collections import OrderedDict
 from random import shuffle
 
-AA_ID_DICT = {'A': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7, 'I': 8, 'K': 9,
+# have to set something for the padding in case it is predicted and plotted!! 
+AA_ID_DICT = {'A':0, 'A': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7, 'I': 8, 'K': 9,
               'L': 10, 'M': 11, 'N': 12, 'P': 13, 'Q': 14, 'R': 15, 'S': 16, 'T': 17,
               'V': 18, 'W': 19,'Y': 20}
 
@@ -368,7 +369,7 @@ def get_backbone_positions_from_angular_prediction(angular_emissions, batch_size
     return coordinates.transpose(0,1).contiguous().view(batch_sizes,-1,9).transpose(0,1), batch_sizes
 
 
-def calc_avg_drmsd_over_minibatch(backbone_atoms_padded, actual_coords_padded, batch_sizes):
+'''def calc_avg_drmsd_over_minibatch(backbone_atoms_padded, actual_coords_padded, batch_sizes):
     backbone_atoms_list = list(
         [backbone_atoms_padded[:batch_sizes[i], i] for i in range(int(backbone_atoms_padded.size(1)))])
     actual_coords_list = list(
@@ -378,7 +379,7 @@ def calc_avg_drmsd_over_minibatch(backbone_atoms_padded, actual_coords_padded, b
         actual_coords = actual_coords_list[idx].transpose(0, 1).contiguous().view(-1, 3)
         drmsd_avg += calc_drmsd(backbone_atoms.transpose(0, 1).contiguous().view(-1, 3), actual_coords)
     return drmsd_avg / len(backbone_atoms_list)
-
+'''
 def encode_primary_string(primary):
     return list([AA_ID_DICT[aa] for aa in primary])
 

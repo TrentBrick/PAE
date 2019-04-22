@@ -28,8 +28,6 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
     drmsd_avg_values = list()
 
     start = time.time()
-    rand_protein_to_display = int(np.random.rand(1)[0] *5)
-    print('rand protein to display', rand_protein_to_display)
     plot_losses_train = []
     plot_losses_eval = []
     sample_num=[]
@@ -87,10 +85,10 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
             else:
                 teacher_force= False
                 
-            seq_cross_ent_loss, seq_acc, angular_loss = train_forward(encoder_net, decoder_net, seqs, coords, mask, device, 
+            seq_cross_ent_loss, seq_acc, angular_loss, drmsd_avg = train_forward(encoder_net, decoder_net, seqs, coords, mask, device, 
                                       teacher_forcing=teacher_force, readout=readout)#, print_preds=want_preds_printed)
 
-            loss = seq_cross_ent_loss+angular_loss
+            loss = seq_cross_ent_loss+angular_loss+drmsd_avg
 
             #write_out("Train loss:", float(loss))
             start_compute_grad = time.time()
@@ -152,7 +150,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
                 
                 seqs, coords, mask = x
                 # returns different things because this is the evaluation step! 
-                rmsd, drmsd, eval_seq_cross_ent_loss, eval_seq_acc, eval_angular_loss, angles, angles_pred= train_forward(encoder_net, decoder_net, seqs, coords, mask, device, teacher_forcing=False, readout=readout, print_preds=want_preds_printed, eval_mode=True)
+                rmsd, drmsd, eval_seq_cross_ent_loss, eval_seq_acc, eval_angular_loss, angles, angles_pred, pred_seqs= train_forward(encoder_net, decoder_net, seqs, coords, mask, device, teacher_forcing=False, readout=readout, print_preds=want_preds_printed, eval_mode=True)
                 # angles here are all still padded so is the sequence.  
                 epoch_avg_rmsd += rmsd
                 epoch_avg_drmsd += drmsd
@@ -167,9 +165,12 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
 
             # plot only the last datapoint from the whole eval epoch! seq is not padded
             # I dont need to mask the angles because the first in the batch has no padding!
+            rand_protein_to_display = int(np.random.rand(1)[0] * len(seqs))
             s = seqs[rand_protein_to_display].to(device)
-            write_to_pdb(get_structure_from_angles(s, angles[:,rand_protein_to_display,:][:s.shape[0]]), "test")
-            write_to_pdb(get_structure_from_angles(s, angles_pred[:,rand_protein_to_display,:][:s.shape[0]]), "test_pred")
+            real_angles = angles[:,rand_protein_to_display,:][:s.shape[0]]
+            pred_angles = angles_pred[:,rand_protein_to_display,:][:s.shape[0]]
+            write_to_pdb(get_structure_from_angles(s, real_angles), "test")
+            write_to_pdb(get_structure_from_angles(pred_seqs[rand_protein_to_display][:s.shape[0]].max(dim=1)[1], pred_angles), "test_pred")
 
             tot_eval_acc = tot_eval_acc/num_eval_batches_per_epoch
             tot_eval_loss = tot_eval_loss/num_eval_batches_per_epoch
@@ -190,10 +191,10 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
                 data["sample_num"] = sample_num
                 data["train_loss_values"] = plot_losses_train
                 data["validation_loss_values"] = plot_losses_eval
-                data["phi_actual"] = list([math.degrees(float(v)) for v in angles[0][1:,1]])
-                data["psi_actual"] = list([math.degrees(float(v)) for v in angles[0][:-1,2]])
-                data["phi_predicted"] = list([math.degrees(float(v)) for v in angles_pred[0][1:,1]])
-                data["psi_predicted"] = list([math.degrees(float(v)) for v in angles_pred[0][:-1,2]])
+                data["phi_actual"] = list([math.degrees(float(v)) for v in real_angles[1:,1]])
+                data["psi_actual"] = list([math.degrees(float(v)) for v in real_angles[:-1,2]])
+                data["phi_predicted"] = list([math.degrees(float(v)) for v in pred_angles[1:,1]])
+                data["psi_predicted"] = list([math.degrees(float(v)) for v in pred_angles[:-1,2]])
                 data["drmsd_avg"] = drmsd_avg_values
                 data["rmsd_avg"] = rmsd_avg_values
                 res = requests.post('http://localhost:5000/graph', json=data)
@@ -219,10 +220,10 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
         
         e +=1
 
-def train_forward(encoder_net, decoder_net, seqs, coords, mask, device, readout=True, teacher_forcing=False, make_preds=False, print_preds=False, eval_mode=False ):
+def train_forward(encoder_net, decoder_net, inp_seqs, coords, mask, device, readout=True, teacher_forcing=False, make_preds=False, print_preds=False, eval_mode=False ):
 
     seqs, lengths = torch.nn.utils.rnn.pad_packed_sequence(
-                    torch.nn.utils.rnn.pack_sequence(seqs))
+                    torch.nn.utils.rnn.pack_sequence(inp_seqs))
 
     latent, padded_dihedrals = encoder_net(seqs.to(device), lengths, coords)
     
@@ -265,10 +266,12 @@ def train_forward(encoder_net, decoder_net, seqs, coords, mask, device, readout=
         return pred_seqs, backbone_atoms_padded
     
     if print_preds:
-        # always print a random number. 
+        # always print a random number.
         rand_ind = int(torch.rand([1]).item()*batch_size)
-        print('ground truth sequence', seqs.max(dim=2)[1][rand_ind,:])
-        print('predicted values sequence', pred_seqs.max(dim=2)[1][rand_ind,:])
+        s = inp_seqs[rand_ind]
+        top_preds = pred_seqs[rand_ind].max(dim=1)[1]  # [:s.shape[0]]
+        print('ground truth sequence', s)
+        print('predicted values sequence', top_preds)
 
     if eval_mode:
         dRMSD_list = [] # remove once I parallelize angle calculations!!! 
@@ -289,7 +292,18 @@ def train_forward(encoder_net, decoder_net, seqs, coords, mask, device, readout=
         end = time.time()
         write_out("Calculating all validation losses for minibatch took:", end - start)
 
-        return torch.Tensor(RMSD_list).mean().item(), torch.Tensor(dRMSD_list).mean().item(), eval_seq_cross_ent_loss, eval_seq_acc, eval_angular_loss, padded_dihedrals, pred_dihedrals
+        return torch.Tensor(RMSD_list).mean().item(), torch.Tensor(dRMSD_list).mean().item(), eval_seq_cross_ent_loss, eval_seq_acc, eval_angular_loss, padded_dihedrals, pred_dihedrals, pred_seqs
     
     # feed in the sequence length for each example and the truth
-    return seq_and_angle_loss(pred_seqs, seqs.t(), pred_dihedrals, padded_dihedrals, mask, use_mask=False)
+    seq_cross_ent_loss, seq_acc, angular_loss = seq_and_angle_loss(pred_seqs, seqs.t(), pred_dihedrals, padded_dihedrals, mask, use_mask=False)
+    # calc drmsd over minibatch: 
+    # same for loop as in the evaluation dataset!! 
+    dRMSD_list = []
+    for tertiary_positions, predicted_backbone_atoms in zip(coords, backbone_atoms_padded.permute([1,0,2])):
+        to_remove_padding =  tertiary_positions.shape[0]
+        actual_coords = tertiary_positions.transpose(0,1).contiguous().view(-1,3)
+        predicted_coords = predicted_backbone_atoms[:to_remove_padding].contiguous().view(-1,3).detach()
+        drmsd = calc_drmsd(predicted_coords, actual_coords, device)
+        dRMSD_list.append(drmsd)
+    drmsd_avg = torch.Tensor(dRMSD_list).mean().item()
+    return seq_cross_ent_loss, seq_acc, angular_loss, drmsd_avg
