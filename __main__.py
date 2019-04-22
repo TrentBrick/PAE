@@ -41,7 +41,9 @@ if args.hide_ui:
 
 # start web server ==============
 
-#start_dashboard_server()
+hide_ui = False
+if not hide_ui: 
+    start_dashboard_server()
 
 # WRONG FILEI FOR TRAINING FOR NOW!! 
 variant = '_trimmed'
@@ -59,16 +61,15 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 mem_pin = False
 BATCH_SIZE = 32
-epochs = 50
+epochs = 500
 curr_ep = 1 # cant be 0 else later on there is division by zero!
-learning_rate=0.0001
+learning_rate=0.001
 clip=30
 
 readout=False
 allow_teacher_force = False
 teaching_strategy = 'epoch' # can also be 'accuracy'
 want_preds_printed = False
-hide_ui = True
 
 encoder_net = EncoderNet(device, ENCODING_LSTM_OUTPUT=ENCODING_LSTM_OUTPUT, CODE_LAYER_SIZE=CODE_LAYER_SIZE, 
                         VOCAB_SIZE=VOCAB_SIZE, ENCODER_LSTM_NUM_LAYERS=ENCODER_LSTM_NUM_LAYERS).to(device)

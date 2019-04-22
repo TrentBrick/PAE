@@ -6,6 +6,7 @@
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
+import platform 
 import threading
 
 app = Flask(__name__)
@@ -41,11 +42,19 @@ class frontendWebServer (threading.Thread):
    def __init__(self):
       threading.Thread.__init__(self)
    def run(self):
-       from subprocess import call
-       call(["/bin/bash", "start_web_app.sh"])
+      if platform.system() is 'Windows':
+         location_to_go = "powershell.exe"
+         file_to_run = ".\start_web_app.bat"
+      else:
+         location_to_go = "/bin/bash"
+         file_to_run = "start_web_app.sh"
+      from subprocess import call
+      call([location_to_go, file_to_run] )#, shell=True)
 
 def start_dashboard_server():
     flask_thread = graphWebServer()
     flask_thread.start()
     front_end_thread = frontendWebServer()
     front_end_thread.start()
+
+start_dashboard_server()

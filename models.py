@@ -44,7 +44,6 @@ class EncoderNet(nn.Module):
         res = torch.cat( (seq_hidden_means, tert_hidden_means), dim=1)       
         res = self.batchnorm(res)
         res = self.dense2_enc(F.elu(self.dense1_enc(res))) # used to have F.tanh here!
-        #print('after dense layers', res, res.shape) 
         # out_padded are the dihedral angles for the structure!! 
         return res, padded_real_angles
 

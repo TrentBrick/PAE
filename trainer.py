@@ -4,6 +4,7 @@ from util import *
 from models import *
 from nn_util import * 
 import pickle
+import requests
 
 def fitModel(encoder_net, decoder_net, encoder_optimizer, 
              decoder_optimizer, BATCH_SIZE, epochs, e, learning_rate, 
@@ -163,9 +164,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
 
             # plot only the last datapoint from the whole eval epoch! seq is not padded
             # I dont need to mask the angles because the first in the batch has no padding!
-            print('batch size of the sequences:', len(seqs))
             s = seqs[0].to(device)
-            print('to pdb ', s.shape, angles[:,0,:].shape, angles_pred[:,0,:].shape)
             write_to_pdb(get_structure_from_angles(s, angles[:,0,:]), "test")
             write_to_pdb(get_structure_from_angles(s, angles_pred[:,0,:]), "test_pred")
 
@@ -184,7 +183,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
                 data["pdb_data_pred"] = open("output/protein_test_pred.pdb","r").read()
                 data["pdb_data_true"] = open("output/protein_test.pdb","r").read()
                 data["validation_dataset_size"] = validation_dataset_size
-                data["num_mini_batches_processed"] = mini_batch_iters
+                data["sample_num"] = mini_batch_iters
                 data["train_loss_values"] = plot_losses_train
                 data["validation_loss_values"] = plot_losses_eval
                 data["phi_actual"] = list([math.degrees(float(v)) for v in angles[0][1:,1]])
@@ -278,7 +277,6 @@ def train_forward(encoder_net, decoder_net, seqs, coords, mask, device, readout=
             to_remove_padding =  tertiary_positions.shape[0]
             actual_coords = tertiary_positions.transpose(0,1).contiguous().view(-1,3)
             predicted_coords = predicted_backbone_atoms[:to_remove_padding].contiguous().view(-1,3).detach()
-            #print('shapes of coords', actual_coords.shape, predicted_coords.shape)
             rmsd = calc_rmsd(predicted_coords, actual_coords)
             drmsd = calc_drmsd(predicted_coords, actual_coords, device)
             RMSD_list.append(rmsd)
