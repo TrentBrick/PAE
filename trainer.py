@@ -155,7 +155,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
                 epoch_avg_rmsd += rmsd
                 epoch_avg_drmsd += drmsd
                 
-                eval_loss = eval_seq_cross_ent_loss+eval_angular_loss
+                eval_loss = eval_seq_cross_ent_loss+eval_angular_loss+drmsd
                 
                 tot_eval_loss+= eval_loss.item()
                 tot_eval_acc+= eval_seq_acc.item()
@@ -277,7 +277,7 @@ def train_forward(encoder_net, decoder_net, inp_seqs, coords, mask, device, read
         dRMSD_list = [] # remove once I parallelize angle calculations!!! 
         RMSD_list = []  
         start = time.time()
-        eval_seq_cross_ent_loss, eval_seq_acc, eval_angular_loss = seq_and_angle_loss(pred_seqs, seqs.t(), pred_dihedrals, padded_dihedrals, mask, use_mask=False)
+        eval_seq_cross_ent_loss, eval_seq_acc, eval_angular_loss = seq_and_angle_loss(pred_seqs, seqs.t().to(device), pred_dihedrals, padded_dihedrals, mask.to(device),device, use_mask=False)
         # how can I parallelize these calculations?? 
 
         for tertiary_positions, predicted_backbone_atoms in zip(coords, backbone_atoms_padded.permute([1,0,2])):
@@ -295,7 +295,7 @@ def train_forward(encoder_net, decoder_net, inp_seqs, coords, mask, device, read
         return torch.Tensor(RMSD_list).mean().item(), torch.Tensor(dRMSD_list).mean().item(), eval_seq_cross_ent_loss, eval_seq_acc, eval_angular_loss, padded_dihedrals, pred_dihedrals, pred_seqs
     
     # feed in the sequence length for each example and the truth
-    seq_cross_ent_loss, seq_acc, angular_loss = seq_and_angle_loss(pred_seqs, seqs.t(), pred_dihedrals, padded_dihedrals, mask, use_mask=False)
+    seq_cross_ent_loss, seq_acc, angular_loss = seq_and_angle_loss(pred_seqs, seqs.t().to(device), pred_dihedrals, padded_dihedrals, mask.to(device),device, use_mask=False)
     # calc drmsd over minibatch: 
     # same for loop as in the evaluation dataset!! 
     dRMSD_list = []

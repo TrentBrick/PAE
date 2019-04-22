@@ -9,7 +9,6 @@ import numpy as np
 import time
 import requests
 import math
-from dashboard import start_dashboard_server
 
 from trainer import *
 from models import *
@@ -20,47 +19,10 @@ import torch.optim as optim
 
 def main():
 
-    # need to pass anything I do use here into fitModel at the bottom. 
-    '''parser = argparse.ArgumentParser(description = "OpenProtein version 0.1")
-    parser.add_argument('--silent', dest='silent', action='store_true',
-                        help='Dont print verbose debug statements.')
-    parser.add_argument('--hide-ui', dest = 'hide_ui', action = 'store_true',
-                        default=True, help='Hide loss graph and visualization UI while training goes on.')
-    parser.add_argument('--evaluate-on-test', dest = 'evaluate_on_test', action = 'store_true',
-                        default=False, help='Run model of test data.')
-    parser.add_argument('--eval-interval', dest = 'eval_interval', type=int,
-                        default=5, help='Evaluate model on validation set every n epochs.')
-    parser.add_argument('--min-updates', dest = 'minimum_updates', type=int,
-                        default=5000, help='Minimum number of minibatch iterations.')
-    parser.add_argument('--minibatch-size', dest = 'minibatch_size', type=int,
-                        default=1, help='Size of each minibatch.')
-    parser.add_argument('--learning-rate', dest = 'learning_rate', type=float,
-                        default=0.01, help='Learning rate to use during training.')
-    args, unknown = parser.parse_known_args()
-
-    if args.hide_ui:
-        write_out("Live plot deactivated, see output folder for plot.")'''
-
-    # start web server ==============
-
     hide_ui = False
     if not hide_ui: 
+        from dashboard import start_dashboard_server
         start_dashboard_server()
-
-    # WRONG FILEI FOR TRAINING FOR NOW!! 
-    variant = '_trimmed'
-    training_file = "data/preprocessed/testing"+variant+".hdf5"
-    validation_file = "data/preprocessed/testing"+variant+".hdf5"
-    testing_file = "data/preprocessed/testing"+variant+".hdf5"
-
-    ENCODING_LSTM_OUTPUT=300
-    META_ENCODING_LSTM_OUTPUT=150
-    CODE_LAYER_SIZE=200
-    DECODING_LSTM_OUTPUT=300
-    VOCAB_SIZE=21
-    ENCODER_LSTM_NUM_LAYERS=2
-    DECODER_LSTM_NUM_LAYERS=2
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
 
     mem_pin = False
     BATCH_SIZE = 32
@@ -68,6 +30,21 @@ def main():
     curr_ep = 1 # cant be 0 else later on there is division by zero!
     learning_rate=0.0001
     clip=30
+
+    # WRONG FILEI FOR TRAINING FOR NOW!! 
+    variant = '_trimmed'
+    training_file = "data/preprocessed/testing"+variant+".hdf5"
+    validation_file = "data/preprocessed/testing"+variant+".hdf5"
+    testing_file = "data/preprocessed/testing"+variant+".hdf5"
+
+    ENCODING_LSTM_OUTPUT=600
+    META_ENCODING_LSTM_OUTPUT=300
+    CODE_LAYER_SIZE=500
+    DECODING_LSTM_OUTPUT=600
+    VOCAB_SIZE=21
+    ENCODER_LSTM_NUM_LAYERS=2
+    DECODER_LSTM_NUM_LAYERS=2
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
 
     readout=False
     allow_teacher_force = False

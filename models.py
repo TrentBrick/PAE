@@ -34,7 +34,7 @@ class EncoderNet(nn.Module):
         tert_angles = calculate_dihedral_angles_over_minibatch(tert, None, self.device, is_padded=False) 
         # convert this into a packed sequence! 
         #print('pre packing', tert_angles)
-        packed_tert_angles = torch.nn.utils.rnn.pack_sequence(tert_angles)
+        packed_tert_angles = torch.nn.utils.rnn.pack_sequence(tert_angles).to(self.device)
         #this is to return for the loss function, the real dihedral angles: 
         padded_real_angles, _ = torch.nn.utils.rnn.pad_packed_sequence(packed_tert_angles)
         # dealing with the sequences: 
@@ -49,7 +49,7 @@ class EncoderNet(nn.Module):
         res = torch.nn.utils.rnn.pack_padded_sequence(res, lengths)
         res, hidden = self.encoder_meta(res)
         res, lengths= torch.nn.utils.rnn.pad_packed_sequence(res)
-        res = torch.sum(res, dim=0) / lengths.view(-1,1).expand(-1, self.META_ENCODING_LSTM_OUTPUT*2).type(torch.float)
+        res = torch.sum(res, dim=0) / lengths.view(-1,1).expand(-1, self.META_ENCODING_LSTM_OUTPUT*2).type(torch.float).to(self.device)
         #res = torch.cat( (seq_hidden_means, tert_hidden_means), dim=1)       
         res = self.batchnorm(res)
         res = self.dense2_enc(F.elu(self.dense1_enc(res))) # used to have F.tanh here!
@@ -123,8 +123,8 @@ class DecoderNet(nn.Module):
         # alternatives to weird angle mixture model. 
         # # just predicting dihedrals directly. Then try to scale them to be between +/-pi
         # # then try using atan2
-
-        output_angles = np.pi* F.tanh(self.latent_to_dihedral2(F.elu(self.latent_to_dihedral1(prev_out)))).permute([1,0,2]) # max size, minibatch size, 3 (angels)
+            #np.pi* F.tanh(
+        output_angles = self.latent_to_dihedral2(F.elu(self.latent_to_dihedral1(prev_out))).permute([1,0,2]) # max size, minibatch size, 3 (angels)
         #print('output angles shape::: ', output_angles.shape)
         ###print('output angles::: ', output_angles)
         # weird angle mixture model thing. 

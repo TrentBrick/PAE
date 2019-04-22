@@ -5,10 +5,10 @@ import numpy as np
 from datetime import datetime
 import time
 
-def seq_and_angle_loss(pred_seqs, padded_seqs, pred_dihedrals, padded_dihedrals, mask, VOCAB_SIZE=21, use_mask=False):
+def seq_and_angle_loss(pred_seqs, padded_seqs, pred_dihedrals, padded_dihedrals, mask, device, VOCAB_SIZE=21, use_mask=False):
     # Everything is padded here! 
     if not use_mask:
-        mask = torch.ones(mask.shape).byte()
+        mask = torch.ones(mask.shape).byte().to(device)
     '''criterion = torch.nn.NLLLoss(size_average=True, ignore_index=-1)
     loss=  criterion(pred_seqs.permute([0,2,1]).contiguous(),padded_seqs.max(dim=2)[1])'''
     #get cross entropy just padding at the end!
@@ -26,7 +26,7 @@ def seq_and_angle_loss(pred_seqs, padded_seqs, pred_dihedrals, padded_dihedrals,
     #loss for the angles, apply the mask to padding and uncertain coordinates!
     mask = mask.view(mask.shape[0],mask.shape[1], 1).expand(-1,-1,3)
     angular_loss = calc_angular_difference(torch.masked_select(pred_dihedrals, mask), 
-            torch.masked_select(torch.Tensor(padded_dihedrals), mask))
+            torch.masked_select(padded_dihedrals, mask))
 
     return seq_cross_ent_loss, seq_acc, angular_loss
 
