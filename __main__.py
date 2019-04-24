@@ -19,7 +19,7 @@ import torch.optim as optim
 
 def main():
 
-    hide_ui = False
+    hide_ui = True
     if not hide_ui: 
         from dashboard import start_dashboard_server
         start_dashboard_server()
@@ -39,7 +39,7 @@ def main():
 
     ENCODING_LSTM_OUTPUT=600
     META_ENCODING_LSTM_OUTPUT=300
-    CODE_LAYER_SIZE=500
+    CODE_LAYER_SIZE=1500
     DECODING_LSTM_OUTPUT=600
     VOCAB_SIZE=21
     ENCODER_LSTM_NUM_LAYERS=2
@@ -66,8 +66,8 @@ def main():
     '''enc_saved_weights = dict()
     dec_saved_weights = dict()'''
     #nn.init.xavier_uniform_(w, gain=nn.init.calculate_gain('relu'))
-    for net in [encoder_net, decoder_net]: #, save_dict in zip([encoder_net, decoder_net], [enc_saved_weights, dec_saved_weights]):
-        net.apply(init_weights)
+    #for net in [encoder_net, decoder_net]: #, save_dict in zip([encoder_net, decoder_net], [enc_saved_weights, dec_saved_weights]):
+    #    net.apply(init_weights)
         #save_dict = net.apply(save_weights)
 
     #LOAD IN EXISTING MODEL? 
