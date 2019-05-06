@@ -89,7 +89,7 @@ class soft_to_angle(nn.Module):
         return torch.cat((phi, psi, omega), 2)
 
 class DecoderNet(nn.Module):
-    def __init__(self, device, DECODING_LSTM_OUTPUT=100, CODE_LAYER_SIZE=50, VOCAB_SIZE=20, DECODER_LSTM_NUM_LAYERS=1 ):
+    def __init__(self, device, DECODING_LSTM_OUTPUT=100, CODE_LAYER_SIZE=50, VOCAB_SIZE=21, DECODER_LSTM_NUM_LAYERS=1 ):
         super(DecoderNet, self).__init__()
         #decode it should be the inverse of the encoder!
         #self.dense1_predecode = nn.Linear(in_features=(CODE_LAYER_SIZE), out_features=50 )

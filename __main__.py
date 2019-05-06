@@ -51,11 +51,11 @@ def main():
     teaching_strategy = 'epoch' # can also be 'accuracy'
     want_preds_printed = False
 
-    # MINUS 1 TO THE VOCAB SIZE FOR THE DECODER BECAUSE IT DOESNT HAVE TO PREDICT PADDING! 
+    # could make this more efficient by preventing padding from being predicted and rewriting the loss function for the sequences. 
     encoder_net = EncoderNet(device, ENCODING_LSTM_OUTPUT=ENCODING_LSTM_OUTPUT, META_ENCODING_LSTM_OUTPUT=META_ENCODING_LSTM_OUTPUT, CODE_LAYER_SIZE=CODE_LAYER_SIZE, 
                             VOCAB_SIZE=VOCAB_SIZE, ENCODER_LSTM_NUM_LAYERS=ENCODER_LSTM_NUM_LAYERS).to(device)
     decoder_net = DecoderNet(device, DECODING_LSTM_OUTPUT=DECODING_LSTM_OUTPUT, CODE_LAYER_SIZE=CODE_LAYER_SIZE, 
-                            VOCAB_SIZE=VOCAB_SIZE-1, DECODER_LSTM_NUM_LAYERS=DECODER_LSTM_NUM_LAYERS).to(device)
+                            VOCAB_SIZE=VOCAB_SIZE, DECODER_LSTM_NUM_LAYERS=DECODER_LSTM_NUM_LAYERS).to(device)
 
     encoder_optimizer = optim.Adam(encoder_net.parameters(), lr=learning_rate)
     decoder_optimizer = optim.Adam(decoder_net.parameters(), lr=learning_rate)
