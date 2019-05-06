@@ -52,7 +52,7 @@ def saveModel(exp_id, encoder_net, decoder_net,encoder_optimizer, decoder_optimi
 def loadModel(encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, load_name, ignore_optim=False):
     #ignore optim is for when I am loading in a model to assess predictions and not training it anymore. 
     for name, net, optim in zip(['encoder_save','decoder_save'],[encoder_net, decoder_net],[encoder_optimizer, decoder_optimizer] ):
-        checkpoint = torch.load(load_name+name+'.tar')
+        checkpoint = torch.load('output/models/'+load_name+name+'.tar')
         state = checkpoint['model_state_dict'] #.state_dict()
         #state.update(net.state_dict())
         net.load_state_dict(state)#checkpoint['model_state_dict'])

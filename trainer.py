@@ -178,7 +178,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
             sample_num.append(mini_batch_iters)
             print('Eval Loss average per batch: %.4f Accuracy: %.4f' % (tot_eval_loss, tot_eval_acc) ) 
             #right now this is actually train accuracy just because I want to overfit!!! 
-            if (print_loss_avg<best_train_loss):
+            if (print_loss_avg<best_train_loss-0.05):
                 print('new best train loss! At:', round(print_loss_avg,4),' Saving model')
                 best_train_loss = print_loss_avg
                 saveModel(exp_id, encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, loss.item(), tot_eval_acc, e)
@@ -215,8 +215,8 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
         
         pickle.dump((plot_losses_train, plot_losses_eval), open(save_name+'list_of_losses_to_plot.pickle', 'wb'))
         
-        encoder_scheduler.step(print_loss_avg)
-        decoder_scheduler.step(print_loss_avg)
+        #encoder_scheduler.step(print_loss_avg)
+        #decoder_scheduler.step(print_loss_avg)
         
         e +=1
 

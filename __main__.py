@@ -60,6 +60,10 @@ def main():
     encoder_optimizer = optim.Adam(encoder_net.parameters(), lr=learning_rate)
     decoder_optimizer = optim.Adam(decoder_net.parameters(), lr=learning_rate)
 
+    # WATCH OUT FOR MIN VS MAX!!! If it is max then it reduces the LR when the value stops INCREASING. 
+    encoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(encoder_optimizer, 'min', factor=0.9, patience=5, verbose=True, threshold=0.001, threshold_mode='abs' )
+    decoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(decoder_optimizer, 'min', factor=0.9, patience=5, verbose=True, threshold=0.001, threshold_mode='abs' )
+
     #encoder_optimizer = optim.SGD(encoder_net.parameters(), lr=learning_rate, momentum =0.9)
     #decoder_optimizer = optim.SGD(decoder_net.parameters(), lr=learning_rate, momentum =0.9)
 
@@ -83,11 +87,7 @@ def main():
 
     encoder_net.train()
     decoder_net.train()
-
-    # WATCH OUT FOR MIN VS MAX!!! If it is max then it reduces the LR when the value stops INCREASING. 
-    encoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(encoder_optimizer, 'min', factor=0.9, patience=5, verbose=True, threshold=0.0001 )
-    decoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(decoder_optimizer, 'min', factor=0.9, patience=5, verbose=True, threshold=0.0001  )
-        
+  
     fitModel(encoder_net, decoder_net, encoder_optimizer, decoder_optimizer, 
             BATCH_SIZE, epochs, curr_ep, learning_rate, mem_pin, device, 
             save_name, load_name, readout, allow_teacher_force, teaching_strategy, 
