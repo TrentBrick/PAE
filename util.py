@@ -21,10 +21,17 @@ from torch.utils.data import Sampler, Dataset
 from collections import OrderedDict
 from random import shuffle
 
-# have to set something for the padding in case it is predicted and plotted!! 
-AA_ID_DICT = {'A':0, 'A': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7, 'I': 8, 'K': 9,
+# have to set something for the padding value of 0 in case it is predicted and plotted!! 
+# I ALSO HAVE TO MODIFY THIS INSIDE OF protein_id_to_dict AS IT MAKES AN INVERSE
+# DICTIONARY AND CANT HAVE A DIFFERENT VALUE FOR 
+'''AA_ID_DICT = {'A': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7, 'I': 8, 'K': 9,
               'L': 10, 'M': 11, 'N': 12, 'P': 13, 'Q': 14, 'R': 15, 'S': 16, 'T': 17,
-              'V': 18, 'W': 19,'Y': 20}
+              'V': 18, 'W': 19,'Y': 20}'''
+
+#Where padding cannot be predicted!! 
+AA_ID_DICT = {'A': 0, 'C': 1, 'D': 2, 'E': 3, 'F': 4, 'G': 5, 'H': 6, 'I': 7, 'K': 8,
+'L': 9, 'M': 10, 'N': 11, 'P': 12, 'Q': 13, 'R': 14, 'S': 15, 'T': 16,
+'V': 17, 'W': 18,'Y': 19}
 
 def contruct_dataloader_from_disk(filename, minibatch_size):
     # may want to pre generate ind_n_len with another function and then feed this into the BatchSampler direct

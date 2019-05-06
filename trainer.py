@@ -154,7 +154,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
                 # angles here are all still padded so is the sequence.  
                 epoch_avg_rmsd += rmsd
                 epoch_avg_drmsd += drmsd
-                
+                print('eval loss is keeping the drmsd for now')
                 eval_loss = eval_seq_cross_ent_loss+eval_angular_loss+drmsd
                 
                 tot_eval_loss+= eval_loss.item()

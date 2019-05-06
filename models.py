@@ -51,7 +51,8 @@ class EncoderNet(nn.Module):
         res, lengths= torch.nn.utils.rnn.pad_packed_sequence(res)
         res = torch.sum(res, dim=0) / lengths.view(-1,1).expand(-1, self.META_ENCODING_LSTM_OUTPUT*2).type(torch.float).to(self.device)
         #res = torch.cat( (seq_hidden_means, tert_hidden_means), dim=1)       
-        res = self.batchnorm(res)
+        #Ignore the batchnorm for now! 
+        #res = self.batchnorm(res)
         res = self.dense2_enc(F.elu(self.dense1_enc(res))) # used to have F.tanh here!
         # out_padded are the dihedral angles for the structure!! 
         return res, padded_real_angles
@@ -88,7 +89,7 @@ class soft_to_angle(nn.Module):
         return torch.cat((phi, psi, omega), 2)
 
 class DecoderNet(nn.Module):
-    def __init__(self, device, DECODING_LSTM_OUTPUT=100, CODE_LAYER_SIZE=50, VOCAB_SIZE=21, DECODER_LSTM_NUM_LAYERS=1 ):
+    def __init__(self, device, DECODING_LSTM_OUTPUT=100, CODE_LAYER_SIZE=50, VOCAB_SIZE=20, DECODER_LSTM_NUM_LAYERS=1 ):
         super(DecoderNet, self).__init__()
         #decode it should be the inverse of the encoder!
         #self.dense1_predecode = nn.Linear(in_features=(CODE_LAYER_SIZE), out_features=50 )

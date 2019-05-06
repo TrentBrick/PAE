@@ -37,11 +37,11 @@ def main():
     validation_file = "data/preprocessed/testing"+variant+".hdf5"
     testing_file = "data/preprocessed/testing"+variant+".hdf5"
 
-    ENCODING_LSTM_OUTPUT=2000
-    META_ENCODING_LSTM_OUTPUT=1000
+    ENCODING_LSTM_OUTPUT=600
+    META_ENCODING_LSTM_OUTPUT=600
     CODE_LAYER_SIZE=5000
-    DECODING_LSTM_OUTPUT=2000
-    VOCAB_SIZE=21
+    DECODING_LSTM_OUTPUT=600
+    VOCAB_SIZE=21 # 20 amino acids and then the padding value too
     ENCODER_LSTM_NUM_LAYERS=1
     DECODER_LSTM_NUM_LAYERS=1
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
@@ -51,10 +51,11 @@ def main():
     teaching_strategy = 'epoch' # can also be 'accuracy'
     want_preds_printed = False
 
+    # MINUS 1 TO THE VOCAB SIZE FOR THE DECODER BECAUSE IT DOESNT HAVE TO PREDICT PADDING! 
     encoder_net = EncoderNet(device, ENCODING_LSTM_OUTPUT=ENCODING_LSTM_OUTPUT, META_ENCODING_LSTM_OUTPUT=META_ENCODING_LSTM_OUTPUT, CODE_LAYER_SIZE=CODE_LAYER_SIZE, 
                             VOCAB_SIZE=VOCAB_SIZE, ENCODER_LSTM_NUM_LAYERS=ENCODER_LSTM_NUM_LAYERS).to(device)
     decoder_net = DecoderNet(device, DECODING_LSTM_OUTPUT=DECODING_LSTM_OUTPUT, CODE_LAYER_SIZE=CODE_LAYER_SIZE, 
-                            VOCAB_SIZE=VOCAB_SIZE, DECODER_LSTM_NUM_LAYERS=DECODER_LSTM_NUM_LAYERS).to(device)
+                            VOCAB_SIZE=VOCAB_SIZE-1, DECODER_LSTM_NUM_LAYERS=DECODER_LSTM_NUM_LAYERS).to(device)
 
     encoder_optimizer = optim.Adam(encoder_net.parameters(), lr=learning_rate)
     decoder_optimizer = optim.Adam(decoder_net.parameters(), lr=learning_rate)
@@ -71,7 +72,7 @@ def main():
         #save_dict = net.apply(save_weights)
 
     #LOAD IN EXISTING MODEL? 
-    load_model =True
+    load_model =False
     save_name = 'LRexperiment' 
     load_name = 'LRexperiment'
 
