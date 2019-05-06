@@ -88,7 +88,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
             seq_cross_ent_loss, seq_acc, angular_loss, drmsd_avg = train_forward(encoder_net, decoder_net, seqs, coords, mask, device, 
                                       teacher_forcing=teacher_force, readout=readout)#, print_preds=want_preds_printed)
 
-            loss = seq_cross_ent_loss+angular_loss+drmsd_avg
+            loss = seq_cross_ent_loss+angular_loss #+drmsd_avg
 
             #write_out("Train loss:", float(loss))
             start_compute_grad = time.time()
@@ -215,8 +215,8 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
         
         pickle.dump((plot_losses_train, plot_losses_eval), open(save_name+'list_of_losses_to_plot.pickle', 'wb'))
         
-        encoder_scheduler.step(accuracy/num_batches_per_epoch)
-        decoder_scheduler.step(accuracy/num_batches_per_epoch)
+        encoder_scheduler.step(print_loss_avg)
+        decoder_scheduler.step(print_loss_avg)
         
         e +=1
 
@@ -298,12 +298,13 @@ def train_forward(encoder_net, decoder_net, inp_seqs, coords, mask, device, read
     seq_cross_ent_loss, seq_acc, angular_loss = seq_and_angle_loss(pred_seqs, seqs.t().to(device), pred_dihedrals, padded_dihedrals, mask.to(device),device, use_mask=False)
     # calc drmsd over minibatch: 
     # same for loop as in the evaluation dataset!! 
-    dRMSD_list = []
+    
+    '''dRMSD_list = []
     for tertiary_positions, predicted_backbone_atoms in zip(coords, backbone_atoms_padded.permute([1,0,2])):
         to_remove_padding =  tertiary_positions.shape[0]
         actual_coords = tertiary_positions.transpose(0,1).contiguous().view(-1,3)
         predicted_coords = predicted_backbone_atoms[:to_remove_padding].contiguous().view(-1,3).detach()
         drmsd = calc_drmsd(predicted_coords, actual_coords, device)
         dRMSD_list.append(drmsd)
-    drmsd_avg = torch.Tensor(dRMSD_list).mean().item()
-    return seq_cross_ent_loss, seq_acc, angular_loss, drmsd_avg
+    drmsd_avg = torch.Tensor(dRMSD_list).mean().item()'''
+    return seq_cross_ent_loss, seq_acc, angular_loss, 5 #, drmsd_avg

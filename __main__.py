@@ -37,10 +37,10 @@ def main():
     validation_file = "data/preprocessed/testing"+variant+".hdf5"
     testing_file = "data/preprocessed/testing"+variant+".hdf5"
 
-    ENCODING_LSTM_OUTPUT=600
-    META_ENCODING_LSTM_OUTPUT=300
-    CODE_LAYER_SIZE=1500
-    DECODING_LSTM_OUTPUT=600
+    ENCODING_LSTM_OUTPUT=300
+    META_ENCODING_LSTM_OUTPUT=150
+    CODE_LAYER_SIZE=1000
+    DECODING_LSTM_OUTPUT=300
     VOCAB_SIZE=21
     ENCODER_LSTM_NUM_LAYERS=2
     DECODER_LSTM_NUM_LAYERS=2
@@ -71,9 +71,9 @@ def main():
         #save_dict = net.apply(save_weights)
 
     #LOAD IN EXISTING MODEL? 
-    load_model =False
+    load_model =True
     save_name = 'code300_' 
-    load_name = 'code300_'
+    load_name = 'output/models/2019-04-24_14_01_43-code300_LR0_001-MB32.tar'
 
     print('All models for this run will be saved under:', save_name)
     if load_model:
@@ -84,8 +84,8 @@ def main():
     decoder_net.train()
 
     # WATCH OUT FOR MIN VS MAX!!!
-    encoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(encoder_optimizer, 'max', factor=0.5, patience=10, verbose=True, threshold=0.0001 )
-    decoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(decoder_optimizer, 'max', factor=0.5, patience=10, verbose=True, threshold=0.0001  )
+    encoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(encoder_optimizer, 'min', factor=0.5, patience=10, verbose=True, threshold=0.0001 )
+    decoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(decoder_optimizer, 'min', factor=0.5, patience=10, verbose=True, threshold=0.0001  )
         
     fitModel(encoder_net, decoder_net, encoder_optimizer, decoder_optimizer, 
             BATCH_SIZE, epochs, curr_ep, learning_rate, mem_pin, device, 
