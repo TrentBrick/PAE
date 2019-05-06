@@ -37,13 +37,13 @@ def main():
     validation_file = "data/preprocessed/testing"+variant+".hdf5"
     testing_file = "data/preprocessed/testing"+variant+".hdf5"
 
-    ENCODING_LSTM_OUTPUT=300
-    META_ENCODING_LSTM_OUTPUT=150
-    CODE_LAYER_SIZE=1000
-    DECODING_LSTM_OUTPUT=300
+    ENCODING_LSTM_OUTPUT=2000
+    META_ENCODING_LSTM_OUTPUT=1000
+    CODE_LAYER_SIZE=5000
+    DECODING_LSTM_OUTPUT=2000
     VOCAB_SIZE=21
-    ENCODER_LSTM_NUM_LAYERS=2
-    DECODER_LSTM_NUM_LAYERS=2
+    ENCODER_LSTM_NUM_LAYERS=1
+    DECODER_LSTM_NUM_LAYERS=1
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
 
     readout=False
@@ -83,9 +83,9 @@ def main():
     encoder_net.train()
     decoder_net.train()
 
-    # WATCH OUT FOR MIN VS MAX!!!
-    encoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(encoder_optimizer, 'min', factor=0.5, patience=10, verbose=True, threshold=0.0001 )
-    decoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(decoder_optimizer, 'min', factor=0.5, patience=10, verbose=True, threshold=0.0001  )
+    # WATCH OUT FOR MIN VS MAX!!! If it is max then it reduces the LR when the value stops INCREASING. 
+    encoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(encoder_optimizer, 'min', factor=0.9, patience=5, verbose=True, threshold=0.0001 )
+    decoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(decoder_optimizer, 'min', factor=0.9, patience=5, verbose=True, threshold=0.0001  )
         
     fitModel(encoder_net, decoder_net, encoder_optimizer, decoder_optimizer, 
             BATCH_SIZE, epochs, curr_ep, learning_rate, mem_pin, device, 
