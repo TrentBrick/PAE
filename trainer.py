@@ -13,7 +13,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
              training_file, validation_file, testing_file, hide_ui):
     
     print('save name for experiment', save_name)
-    exp_id = set_experiment_id(save_name, learning_rate, BATCH_SIZE)
+    exp_id = set_experiment_id(save_name, learning_rate, BATCH_SIZE, store_date_time_etc=False)
 
     train_loader = contruct_dataloader_from_disk(training_file, BATCH_SIZE)
     validation_loader = contruct_dataloader_from_disk(validation_file, BATCH_SIZE)

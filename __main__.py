@@ -72,8 +72,8 @@ def main():
 
     #LOAD IN EXISTING MODEL? 
     load_model =True
-    save_name = 'code300_' 
-    load_name = 'output/models/2019-04-24_14_01_43-code300_LR0_001-MB32.tar'
+    save_name = 'LRexperiment' 
+    load_name = 'LRexperiment'
 
     print('All models for this run will be saved under:', save_name)
     if load_model:

@@ -39,7 +39,7 @@ def printParamNum(encoder_net, decoder_net):
 
 def saveModel(exp_id, encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, train_loss, eval_acc, e):
     for name, net, optim in zip(['encoder_save','decoder_save'],[encoder_net, decoder_net],[encoder_optimizer, decoder_optimizer]):
-        path = "output/models/"+exp_id+".tar"
+        path = "output/models/"+exp_id+name+".tar"
         torch.save({
                     'epoch': e,
                     'model_state_dict': net.state_dict(),
@@ -48,21 +48,6 @@ def saveModel(exp_id, encoder_net, decoder_net,encoder_optimizer, decoder_optimi
                     'eval_accuracy':eval_acc
                     }, path)
     print('saveModel worked')
-    return path
-
-def embed(data, batch_sizes, device):
-    
-    # one-hot encoding
-    start_compute_embed = time.time()
-    prot_aa_list = data.unsqueeze(1)
-    embed_tensor = torch.zeros(prot_aa_list.size(0), 21, prot_aa_list.size(2)).to(device) # 21 classes
-    #prot_aa_list.to(device) #should already be embedded. 
-    input_sequences = embed_tensor.scatter_(1, prot_aa_list.data, 1).transpose(1,2)
-    end = time.time()
-    write_out("Embed time:", end - start_compute_embed)
-    packed_input_sequences = rnn_utils.pack_padded_sequence(input_sequences, batch_sizes)
-    return packed_input_sequences
-
 
 def loadModel(encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, load_name, ignore_optim=False):
     #ignore optim is for when I am loading in a model to assess predictions and not training it anymore. 
@@ -78,6 +63,20 @@ def loadModel(encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, loa
         best_eval_acc = checkpoint['eval_accuracy']
     print('loaded in previous model!')
     return encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, loss, e, best_eval_acc
+
+
+def embed(data, batch_sizes, device):
+    
+    # one-hot encoding
+    start_compute_embed = time.time()
+    prot_aa_list = data.unsqueeze(1)
+    embed_tensor = torch.zeros(prot_aa_list.size(0), 21, prot_aa_list.size(2)).to(device) # 21 classes
+    #prot_aa_list.to(device) #should already be embedded. 
+    input_sequences = embed_tensor.scatter_(1, prot_aa_list.data, 1).transpose(1,2)
+    end = time.time()
+    write_out("Embed time:", end - start_compute_embed)
+    packed_input_sequences = rnn_utils.pack_padded_sequence(input_sequences, batch_sizes)
+    return packed_input_sequences
 
 def init_weights(m):
     if type(m) == torch.nn.Linear:

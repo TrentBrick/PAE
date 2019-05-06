@@ -124,11 +124,14 @@ class BucketBatchSampler(Sampler):
         for i in self.batch_list:
             yield i
 
-def set_experiment_id(data_set_identifier, learning_rate, minibatch_size):
-    output_string = datetime.now().strftime('%Y-%m-%d_%H_%M_%S')
-    output_string += "-" + data_set_identifier
-    output_string += "LR" + str(learning_rate).replace(".","_")
-    output_string += "-MB" + str(minibatch_size)
+def set_experiment_id(save_name, learning_rate, minibatch_size, store_date_time_etc=False):
+    if store_date_time_etc:
+        output_string = datetime.now().strftime('%Y-%m-%d_%H_%M_%S')
+        output_string += "-" + save_name
+        output_string += "LR" + str(learning_rate).replace(".","_")
+        output_string += "-MB" + str(minibatch_size)
+    else:
+        output_string = save_name
     globals().__setitem__("experiment_id",output_string)
     return output_string
 
