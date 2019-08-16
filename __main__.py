@@ -14,12 +14,13 @@ from trainer import *
 from models import *
 from util import *
 from nn_util import * 
+from RAdam import *
 
 import torch.optim as optim
 
 def main():
 
-    hide_ui = True
+    hide_ui = False
     if not hide_ui: 
         from dashboard import start_dashboard_server
         start_dashboard_server()
@@ -28,8 +29,9 @@ def main():
     BATCH_SIZE = 32
     epochs = 500
     curr_ep = 1 # cant be 0 else later on there is division by zero!
-    learning_rate=0.0001
+    learning_rate=0.001
     clip=30
+    encoder_scheduler_on=False
 
     # WRONG FILEI FOR TRAINING FOR NOW!! 
     variant = '_trimmed'
@@ -57,9 +59,10 @@ def main():
     decoder_net = DecoderNet(device, DECODING_LSTM_OUTPUT=DECODING_LSTM_OUTPUT, CODE_LAYER_SIZE=CODE_LAYER_SIZE, 
                             VOCAB_SIZE=VOCAB_SIZE, DECODER_LSTM_NUM_LAYERS=DECODER_LSTM_NUM_LAYERS).to(device)
 
-    encoder_optimizer = optim.Adam(encoder_net.parameters(), lr=learning_rate)
-    decoder_optimizer = optim.Adam(decoder_net.parameters(), lr=learning_rate)
+    encoder_optimizer = RAdam(encoder_net.parameters(), lr=learning_rate)
+    decoder_optimizer = RAdam(decoder_net.parameters(), lr=learning_rate) # optim.Adam
 
+    ## Only actually used if encoder_scheduler_on = True. 
     # WATCH OUT FOR MIN VS MAX!!! If it is max then it reduces the LR when the value stops INCREASING. 
     encoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(encoder_optimizer, 'min', factor=0.9, patience=5, verbose=True, threshold=0.001, threshold_mode='abs' )
     decoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(decoder_optimizer, 'min', factor=0.9, patience=5, verbose=True, threshold=0.001, threshold_mode='abs' )
@@ -92,7 +95,7 @@ def main():
             BATCH_SIZE, epochs, curr_ep, learning_rate, mem_pin, device, 
             save_name, load_name, readout, allow_teacher_force, teaching_strategy, 
             clip, want_preds_printed, encoder_scheduler, decoder_scheduler,
-            training_file, validation_file, testing_file, hide_ui)
+            training_file, validation_file, testing_file, hide_ui, encoder_scheduler_on=encoder_scheduler_on)
 
 if __name__=='__main__':
     main()

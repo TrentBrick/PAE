@@ -10,7 +10,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
              decoder_optimizer, BATCH_SIZE, epochs, e, learning_rate, 
              mem_pin, device, save_name, load_name, readout, allow_teacher_force, 
              teaching_strategy, clip, want_preds_printed, encoder_scheduler, decoder_scheduler,
-             training_file, validation_file, testing_file, hide_ui):
+             training_file, validation_file, testing_file, hide_ui, encoder_scheduler_on=False):
     
     print('save name for experiment', save_name)
     exp_id = set_experiment_id(save_name, learning_rate, BATCH_SIZE, store_date_time_etc=False)
@@ -44,7 +44,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
     best_train_loss = 100000
     print('approximate num of train batches per ep', num_batches_per_epoch)
     # how often to print minibatch loss
-    print_mini_every = 100
+    print_mini_every = 5
 
     printParamNum(encoder_net, decoder_net)
 
@@ -66,11 +66,15 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
         num_batches_per_epoch =0
 
         # iterate through data
-        for x in train_loader:
+        for batch_num, x in enumerate(train_loader):
+            if batch_num == 0 and e==1:
+                first_ep_first_batch_only = x
+
             num_batches_per_epoch += 1
             start_compute_loss = time.time()
 
-            seqs, coords, mask = x
+            #seqs, coords, mask = x
+            seqs, coords, mask = first_ep_first_batch_only
 
             #seqs = torch.Tensor(seqs).to(device)
             #coords = torch.Tensor(coords).to(device)
@@ -132,7 +136,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
             print_loss_avg = (print_loss_total / print_every) / num_batches_per_epoch
             plot_losses_train.append(print_loss_avg)
             print_loss_total = 0
-            print('Time passed: %s Time Till Done: (%d %d%%) Loss average: %.4f Accuracy: %.4f' % (timeSince(start, e / epochs), e, e /epochs * 100, print_loss_avg, 
+            print('Time passed: %s Time Till Done: (%d %d%%) Training Loss average: %.4f Accuracy: %.4f' % (timeSince(start, e / epochs), e, e /epochs * 100, print_loss_avg, 
                                                                                                    accuracy/num_batches_per_epoch) )
         # cross_eval of model: 
         with torch.no_grad():
@@ -176,7 +180,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
             tot_eval_loss = tot_eval_loss/num_eval_batches_per_epoch
             plot_losses_eval.append(tot_eval_loss)
             sample_num.append(mini_batch_iters)
-            print('Eval Loss average per batch: %.4f Accuracy: %.4f' % (tot_eval_loss, tot_eval_acc) ) 
+            print('CV Loss average per batch: %.4f Sequence Accuracy: %.4f' % (tot_eval_loss, tot_eval_acc) ) 
             #right now this is actually train accuracy just because I want to overfit!!! 
             if (print_loss_avg<best_train_loss-0.05):
                 print('new best train loss! At:', round(print_loss_avg,4),' Saving model')
@@ -215,8 +219,10 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
         
         pickle.dump((plot_losses_train, plot_losses_eval), open(save_name+'list_of_losses_to_plot.pickle', 'wb'))
         
-        #encoder_scheduler.step(print_loss_avg)
-        #decoder_scheduler.step(print_loss_avg)
+        if encoder_scheduler_on==True:
+
+            encoder_scheduler.step(print_loss_avg)
+            decoder_scheduler.step(print_loss_avg)
         
         e +=1
 
