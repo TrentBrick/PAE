@@ -10,7 +10,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
              decoder_optimizer, BATCH_SIZE, epochs, e, learning_rate, 
              mem_pin, device, save_name, load_name, readout, allow_teacher_force, 
              teaching_strategy, clip, want_preds_printed, encoder_scheduler, decoder_scheduler,
-             training_file, validation_file, testing_file, hide_ui, encoder_scheduler_on=False):
+             training_file, validation_file, testing_file, hide_ui, encoder_scheduler_on=False, use_DRMSD=False):
     
     print('save name for experiment', save_name)
     exp_id = set_experiment_id(save_name, learning_rate, BATCH_SIZE, store_date_time_etc=False)
@@ -58,6 +58,8 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
     print('number of epochs', (epochs+e))
     
     init_e = e
+    
+    #first_ep_first_batch_only=None
 
     while e < (epochs+init_e):  
         print('Epoch', e)
@@ -67,14 +69,14 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
 
         # iterate through data
         for batch_num, x in enumerate(train_loader):
-            if batch_num == 0 and e==1:
-                first_ep_first_batch_only = x
+            #if batch_num == 0 and e==1:
+            #    first_ep_first_batch_only = x
 
             num_batches_per_epoch += 1
             start_compute_loss = time.time()
 
-            #seqs, coords, mask = x
-            seqs, coords, mask = first_ep_first_batch_only
+            seqs, coords, mask = x
+            #seqs, coords, mask = first_ep_first_batch_only
 
             #seqs = torch.Tensor(seqs).to(device)
             #coords = torch.Tensor(coords).to(device)
@@ -92,7 +94,10 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
             seq_cross_ent_loss, seq_acc, angular_loss, drmsd_avg = train_forward(encoder_net, decoder_net, seqs, coords, mask, device, 
                                       teacher_forcing=teacher_force, readout=readout)#, print_preds=want_preds_printed)
 
-            loss = seq_cross_ent_loss+angular_loss #+drmsd_avg
+            loss = seq_cross_ent_loss+angular_loss
+            if use_DRMSD == True:
+                loss+= drmsd_avg
+             #+drmsd_avg
 
             #write_out("Train loss:", float(loss))
             start_compute_grad = time.time()
@@ -159,28 +164,22 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
                 epoch_avg_rmsd += rmsd
                 epoch_avg_drmsd += drmsd
                 print('eval loss is keeping the drmsd for now')
-                eval_loss = eval_seq_cross_ent_loss+eval_angular_loss+drmsd
+                eval_loss = eval_seq_cross_ent_loss+eval_angular_loss
+                if use_DRMSD == True:
+                    eval_loss+= drmsd
                 
                 tot_eval_loss+= eval_loss.item()
                 tot_eval_acc+= eval_seq_acc.item()
 
-            drmsd_avg_values.append( epoch_avg_rmsd /num_eval_batches_per_epoch )
-            rmsd_avg_values.append( epoch_avg_drmsd /num_eval_batches_per_epoch )
-
-            # plot only the last datapoint from the whole eval epoch! seq is not padded
-            # I dont need to mask the angles because the first in the batch has no padding!
-            rand_protein_to_display = int(np.random.rand(1)[0] * len(seqs))
-            s = seqs[rand_protein_to_display].to(device)
-            real_angles = angles[:,rand_protein_to_display,:][:s.shape[0]]
-            pred_angles = angles_pred[:,rand_protein_to_display,:][:s.shape[0]]
-            write_to_pdb(get_structure_from_angles(s, real_angles), "test")
-            write_to_pdb(get_structure_from_angles(pred_seqs[rand_protein_to_display][:s.shape[0]].max(dim=1)[1], pred_angles), "test_pred")
+            drmsd_avg_values.append( epoch_avg_drmsd /num_eval_batches_per_epoch )
+            rmsd_avg_values.append( epoch_avg_rmsd /num_eval_batches_per_epoch )
 
             tot_eval_acc = tot_eval_acc/num_eval_batches_per_epoch
             tot_eval_loss = tot_eval_loss/num_eval_batches_per_epoch
             plot_losses_eval.append(tot_eval_loss)
             sample_num.append(mini_batch_iters)
             print('CV Loss average per batch: %.4f Sequence Accuracy: %.4f' % (tot_eval_loss, tot_eval_acc) ) 
+            print('DRMSD Average Loss in CV Epoch %.4f | RMSD Avg Loss in CV Epoch %.4f' %(epoch_avg_drmsd /num_eval_batches_per_epoch, epoch_avg_rmsd /num_eval_batches_per_epoch))
             #right now this is actually train accuracy just because I want to overfit!!! 
             if (print_loss_avg<best_train_loss-0.05):
                 print('new best train loss! At:', round(print_loss_avg,4),' Saving model')
@@ -188,6 +187,16 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
                 saveModel(exp_id, encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, loss.item(), tot_eval_acc, e)
         
             if not hide_ui:
+
+                # plot only the last datapoint from the whole eval epoch! seq is not padded
+                # I dont need to mask the angles because the first in the batch has no padding!
+                rand_protein_to_display = int(np.random.rand(1)[0] * len(seqs))
+                s = seqs[rand_protein_to_display].to(device)
+                real_angles = angles[:,rand_protein_to_display,:][:s.shape[0]]
+                pred_angles = angles_pred[:,rand_protein_to_display,:][:s.shape[0]]
+                write_to_pdb(get_structure_from_angles(s, real_angles), "test")
+                write_to_pdb(get_structure_from_angles(pred_seqs[rand_protein_to_display][:s.shape[0]].max(dim=1)[1], pred_angles), "test_pred")
+
                 data = {}
                 data["pdb_data_pred"] = open("output/protein_test_pred.pdb","r").read()
                 data["pdb_data_true"] = open("output/protein_test.pdb","r").read()

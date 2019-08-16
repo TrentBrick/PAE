@@ -128,12 +128,14 @@ class DecoderNet(nn.Module):
         output_angles = self.latent_to_dihedral2(F.elu(self.latent_to_dihedral1(prev_out))).permute([1,0,2]) # max size, minibatch size, 3 (angels)
         #print('output angles shape::: ', output_angles.shape)
         ###print('output angles::: ', output_angles)
+
         # weird angle mixture model thing. 
         '''x = self.hidden_to_labels(prev_out)
         x = self.bn(x.permute([0,2,1])).permute([0,2,1]).contiguous()
         #x = x.transpose(1,2) #(minibatch_size, -1, self.mixture_size)
         p = torch.exp(self.soft(x))
         output_angles = self.softmax_to_angle(p).transpose(0,1) # max size, minibatch size, 3 (angels)'''
+        
         # used to feed in batch sizes here. could do so from encoder. but all I do I take the length of it... 
         backbone_atoms_padded, batch_sizes_backbone = get_backbone_positions_from_angular_prediction(output_angles, 
                                                                         latent_space.shape[0], self.device)     

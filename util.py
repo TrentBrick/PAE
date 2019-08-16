@@ -53,9 +53,9 @@ class H5PytorchDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         # this mask gets rid of the padding that is added during the preprocessing step.
-        padding_mask = torch.Tensor(self.h5pyfile['padding_mask'][index,:]).type(dtype=torch.uint8) 
+        padding_mask = torch.Tensor(self.h5pyfile['padding_mask'][index,:]).type(dtype=torch.bool) 
         # below mask has the actual amino acids without good angle data. 
-        mask = torch.masked_select(torch.Tensor(self.h5pyfile['mask'][index,:]).type(dtype=torch.uint8), padding_mask)
+        mask = torch.masked_select(torch.Tensor(self.h5pyfile['mask'][index,:]).type(dtype=torch.bool), padding_mask)
         # I need to apply the mask select here but only to the end padding!
         prim = torch.masked_select(torch.Tensor(self.h5pyfile['primary'][index,:]).type(dtype=torch.long), padding_mask)
         tertiary = torch.Tensor(self.h5pyfile['tertiary'][index][:int(padding_mask.sum())]) # max length x 9
@@ -68,7 +68,7 @@ class H5PytorchDataset(torch.utils.data.Dataset):
         return self.num_proteins
 
     def sequences(self):
-        padding_mask = torch.Tensor(self.h5pyfile['padding_mask']).type(dtype=torch.uint8) 
+        padding_mask = torch.Tensor(self.h5pyfile['padding_mask']).type(dtype=torch.bool) 
         lens = padding_mask.sum(dim=1)
         ind_n_len = []
         for i, p in enumerate(lens):

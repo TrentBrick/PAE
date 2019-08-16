@@ -30,8 +30,14 @@ def main():
     epochs = 500
     curr_ep = 1 # cant be 0 else later on there is division by zero!
     learning_rate=0.001
+    use_DRMSD=False
     clip=30
     encoder_scheduler_on=False
+
+    #LOAD IN EXISTING MODEL? 
+    load_model =True
+    save_name = 'LRexperiment' 
+    load_name = 'LRexperiment'
 
     # WRONG FILEI FOR TRAINING FOR NOW!! 
     variant = '_trimmed'
@@ -78,11 +84,6 @@ def main():
     #    net.apply(init_weights)
         #save_dict = net.apply(save_weights)
 
-    #LOAD IN EXISTING MODEL? 
-    load_model =False
-    save_name = 'LRexperiment' 
-    load_name = 'LRexperiment'
-
     print('All models for this run will be saved under:', save_name)
     if load_model:
         print("LOADING IN A MODEL, load_model=True")
@@ -95,7 +96,7 @@ def main():
             BATCH_SIZE, epochs, curr_ep, learning_rate, mem_pin, device, 
             save_name, load_name, readout, allow_teacher_force, teaching_strategy, 
             clip, want_preds_printed, encoder_scheduler, decoder_scheduler,
-            training_file, validation_file, testing_file, hide_ui, encoder_scheduler_on=encoder_scheduler_on)
+            training_file, validation_file, testing_file, hide_ui, encoder_scheduler_on=encoder_scheduler_on, use_DRMSD=use_DRMSD)
 
 if __name__=='__main__':
     main()
