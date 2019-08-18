@@ -92,7 +92,7 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
                 teacher_force= False
                 
             seq_cross_ent_loss, seq_acc, angular_loss, drmsd_avg = train_forward(encoder_net, decoder_net, seqs, coords, mask, device, 
-                                      teacher_forcing=teacher_force, readout=readout)#, print_preds=want_preds_printed)
+                                      teacher_forcing=teacher_force, readout=readout, use_DRMSD=use_DRMSD)#, print_preds=want_preds_printed)
 
             loss = seq_cross_ent_loss+angular_loss
             if use_DRMSD == True:
@@ -159,7 +159,8 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
                 
                 seqs, coords, mask = x
                 # returns different things because this is the evaluation step! 
-                rmsd, drmsd, eval_seq_cross_ent_loss, eval_seq_acc, eval_angular_loss, angles, angles_pred, pred_seqs= train_forward(encoder_net, decoder_net, seqs, coords, mask, device, teacher_forcing=False, readout=readout, print_preds=want_preds_printed, eval_mode=True)
+                rmsd, drmsd, eval_seq_cross_ent_loss, eval_seq_acc, eval_angular_loss, angles, angles_pred, pred_seqs= train_forward(encoder_net, decoder_net, seqs, 
+                coords, mask, device, teacher_forcing=False, readout=readout, print_preds=want_preds_printed, eval_mode=True)
                 # angles here are all still padded so is the sequence.  
                 epoch_avg_rmsd += rmsd
                 epoch_avg_drmsd += drmsd
@@ -235,7 +236,9 @@ def fitModel(encoder_net, decoder_net, encoder_optimizer,
         
         e +=1
 
-def train_forward(encoder_net, decoder_net, inp_seqs, coords, mask, device, readout=True, teacher_forcing=False, make_preds=False, print_preds=False, eval_mode=False ):
+def train_forward(encoder_net, decoder_net, inp_seqs, coords, mask, device, 
+readout=True, teacher_forcing=False, make_preds=False, 
+print_preds=False, eval_mode=False, use_DRMSD=False ):
 
     seqs, lengths = torch.nn.utils.rnn.pad_packed_sequence(
                     torch.nn.utils.rnn.pack_sequence(inp_seqs))
@@ -311,15 +314,18 @@ def train_forward(encoder_net, decoder_net, inp_seqs, coords, mask, device, read
     
     # feed in the sequence length for each example and the truth
     seq_cross_ent_loss, seq_acc, angular_loss = seq_and_angle_loss(pred_seqs, seqs.t().to(device), pred_dihedrals, padded_dihedrals, mask.to(device),device, use_mask=False)
+    
     # calc drmsd over minibatch: 
     # same for loop as in the evaluation dataset!! 
-    
-    '''dRMSD_list = []
-    for tertiary_positions, predicted_backbone_atoms in zip(coords, backbone_atoms_padded.permute([1,0,2])):
-        to_remove_padding =  tertiary_positions.shape[0]
-        actual_coords = tertiary_positions.transpose(0,1).contiguous().view(-1,3)
-        predicted_coords = predicted_backbone_atoms[:to_remove_padding].contiguous().view(-1,3).detach()
-        drmsd = calc_drmsd(predicted_coords, actual_coords, device)
-        dRMSD_list.append(drmsd)
-    drmsd_avg = torch.Tensor(dRMSD_list).mean().item()'''
-    return seq_cross_ent_loss, seq_acc, angular_loss, 5 #, drmsd_avg
+    if use_DRMSD == True:
+        dRMSD_list = []
+        for tertiary_positions, predicted_backbone_atoms in zip(coords, backbone_atoms_padded.permute([1,0,2])):
+            to_remove_padding =  tertiary_positions.shape[0]
+            actual_coords = tertiary_positions.transpose(0,1).contiguous().view(-1,3)
+            predicted_coords = predicted_backbone_atoms[:to_remove_padding].contiguous().view(-1,3).detach()
+            drmsd = calc_drmsd(predicted_coords, actual_coords, device)
+            dRMSD_list.append(drmsd)
+        drmsd_avg = torch.Tensor(dRMSD_list).mean().item()
+    else: 
+        drmsd_avg=10
+    return seq_cross_ent_loss, seq_acc, angular_loss, drmsd_avg

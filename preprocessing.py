@@ -22,7 +22,8 @@ def process_raw_data(device, force_pre_processing_overwrite=True, want_trimmed=F
     #input_files = [input_files[0]]
     input_files_filtered = filter_input_files(input_files)
     for file_path in input_files_filtered:
-        filename = file_path.split('\\')[-1]
+        filename = file_path.split('/')[-1]
+        print('file name is:', filename)
         if want_trimmed:
             preprocessed_file_name = "data/preprocessed/"+filename+"_trimmed" +".hdf5"
         elif want_pure: 
@@ -193,7 +194,7 @@ def filter_input_files(input_files):
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
 
-process_raw_data(device, force_pre_processing_overwrite=True, want_trimmed=True, want_pure=False)
+process_raw_data(device, force_pre_processing_overwrite=True, want_trimmed=False, want_pure=True)
 
 '''
 # while there's more proteins to process

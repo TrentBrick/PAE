@@ -35,9 +35,9 @@ def main():
     encoder_scheduler_on=False
 
     #LOAD IN EXISTING MODEL? 
-    load_model =True
-    save_name = 'dontsave' 
-    load_name = 'TighterLatentexperiment'#LRexperiment
+    load_model =False
+    save_name = 'EvenTighterLatentexperiment' 
+    load_name = 'EvenTighterLatentexperiment'#LRexperiment
 
     # WRONG FILEI FOR TRAINING FOR NOW!! 
     variant = '_trimmed'
