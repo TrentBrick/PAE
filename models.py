@@ -12,6 +12,7 @@ class EncoderNet(nn.Module):
         self.LSTM_NUM_LAYERS = ENCODER_LSTM_NUM_LAYERS
         self.ENCODING_LSTM_OUTPUT = ENCODING_LSTM_OUTPUT
         self.META_ENCODING_LSTM_OUTPUT = META_ENCODING_LSTM_OUTPUT
+        #self.embeddings = nn.Embedding(vocab_size, embedding_dim)        
         self.encoder_seq = nn.LSTM(input_size=VOCAB_SIZE, hidden_size= self.ENCODING_LSTM_OUTPUT,num_layers=self.LSTM_NUM_LAYERS,bidirectional=True, batch_first=False)
         self.encoder_tert = nn.LSTM(input_size=3, hidden_size= self.ENCODING_LSTM_OUTPUT,num_layers=self.LSTM_NUM_LAYERS,bidirectional=True, batch_first=False)
         self.encoder_meta = nn.LSTM(input_size=self.ENCODING_LSTM_OUTPUT*4, hidden_size= self.META_ENCODING_LSTM_OUTPUT,num_layers=1,bidirectional=True, batch_first=False)
@@ -21,8 +22,9 @@ class EncoderNet(nn.Module):
         self.device = device
 
     def forward(self, seq, batch_sizes, tert):
+        # dealing with the sequences first: 
+        # embeds = self.embeddings(inputs).view((1, -1))
         packed_input_sequences = embed(seq, batch_sizes, self.device)
-        # dealing with the sequences: 
         packed_output, hidden = self.encoder_seq(packed_input_sequences)
         # batch comes second here? so shape[1]
         # commented out so I can add the meta LSTM. need to unpack also!!  
@@ -135,7 +137,7 @@ class DecoderNet(nn.Module):
         #x = x.transpose(1,2) #(minibatch_size, -1, self.mixture_size)
         p = torch.exp(self.soft(x))
         output_angles = self.softmax_to_angle(p).transpose(0,1) # max size, minibatch size, 3 (angels)'''
-        
+
         # used to feed in batch sizes here. could do so from encoder. but all I do I take the length of it... 
         backbone_atoms_padded, batch_sizes_backbone = get_backbone_positions_from_angular_prediction(output_angles, 
                                                                         latent_space.shape[0], self.device)     

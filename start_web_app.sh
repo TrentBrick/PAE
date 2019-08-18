@@ -1,3 +1,3 @@
 cd web-app
-npm install
+#npm install
 npm start

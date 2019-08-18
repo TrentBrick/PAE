@@ -51,8 +51,12 @@ def saveModel(exp_id, encoder_net, decoder_net,encoder_optimizer, decoder_optimi
 
 def loadModel(encoder_net, decoder_net,encoder_optimizer, decoder_optimizer, load_name, ignore_optim=False):
     #ignore optim is for when I am loading in a model to assess predictions and not training it anymore. 
+    if torch.cuda.is_available():
+        use_gpu = "cuda"  
+    else:
+        use_gpu= "cpu"
     for name, net, optim in zip(['encoder_save','decoder_save'],[encoder_net, decoder_net],[encoder_optimizer, decoder_optimizer] ):
-        checkpoint = torch.load('output/models/'+load_name+name+'.tar')
+        checkpoint = torch.load('output/models/'+load_name+name+'.tar',map_location=use_gpu)
         state = checkpoint['model_state_dict'] #.state_dict()
         #state.update(net.state_dict())
         net.load_state_dict(state)#checkpoint['model_state_dict'])
