@@ -20,14 +20,14 @@ import torch.optim as optim
 
 def main():
 
-    hide_ui = False
+    hide_ui = True
     if not hide_ui: 
         from dashboard import start_dashboard_server
         start_dashboard_server()
 
     mem_pin = False
     BATCH_SIZE = 32
-    epochs = 500
+    epochs = 15000
     curr_ep = 1 # cant be 0 else later on there is division by zero!
     learning_rate=0.001
     use_DRMSD=False
@@ -35,19 +35,19 @@ def main():
     encoder_scheduler_on=False
 
     #LOAD IN EXISTING MODEL? 
-    load_model =False
-    save_name = 'EvenTighterLatentexperiment' 
+    load_model =True
+    save_name = 'FullTrainexperiment' 
     load_name = 'EvenTighterLatentexperiment'#LRexperiment
 
     # WRONG FILEI FOR TRAINING FOR NOW!! 
     variant = '_trimmed'
-    training_file = "data/preprocessed/testing"+variant+".hdf5"
-    validation_file = "data/preprocessed/testing"+variant+".hdf5"
+    training_file = "data/preprocessed/training_90"+variant+".hdf5"
+    validation_file = "data/preprocessed/validation"+variant+".hdf5"
     testing_file = "data/preprocessed/testing"+variant+".hdf5"
 
     ENCODING_LSTM_OUTPUT=600
     META_ENCODING_LSTM_OUTPUT=600
-    CODE_LAYER_SIZE=1000
+    CODE_LAYER_SIZE=250
     DECODING_LSTM_OUTPUT=600
     VOCAB_SIZE=21 # 20 amino acids and then the padding value too
     ENCODER_LSTM_NUM_LAYERS=1

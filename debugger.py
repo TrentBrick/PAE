@@ -1,9 +1,13 @@
 from util import *
 import h5py
-training_file = "data/preprocessed/training_100_trimmed.hdf5"
+training_file = "data/preprocessed/training_90_trimmed.hdf5"
 print(training_file)
-f=h5py.File(training_file, 'r')
-print(torch.Tensor(f['mask']).shape)
+#f=h5py.File(training_file, 'r')
+#print(torch.Tensor(f['mask']).shape)
+train_loader = contruct_dataloader_from_disk(training_file, 32)
+for ind, x in enumerate(train_loader):
+    print('ind of data is: ', ind)
+    seqs, coords, mask = x
 '''device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 train_loader = contruct_dataloader_from_disk(training_file, 32)
 for x in train_loader:

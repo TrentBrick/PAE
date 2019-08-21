@@ -5,6 +5,8 @@ import numpy as np
 import math
 from util import calculate_dihedral_angles_over_minibatch, get_backbone_positions_from_angular_prediction
 from nn_util import embed
+
+
 class EncoderNet(nn.Module):
     def __init__(self, device, ENCODING_LSTM_OUTPUT=100, META_ENCODING_LSTM_OUTPUT=50 ,CODE_LAYER_SIZE=50, VOCAB_SIZE=21, ENCODER_LSTM_NUM_LAYERS=2 ):
         super(EncoderNet, self).__init__()

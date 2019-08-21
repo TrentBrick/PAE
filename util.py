@@ -15,6 +15,8 @@ from datetime import datetime
 import numpy as np
 import pnerf.pnerf as pnerf
 import platform
+import multiprocessing
+
 #from TorchProteinLibrary import RMSD
 
 from torch.utils.data import Sampler, Dataset
@@ -34,10 +36,11 @@ def contruct_dataloader_from_disk(filename, minibatch_size):
     # may want to pre generate ind_n_len with another function and then feed this into the BatchSampler direct
     ind_n_len = H5PytorchDataset(filename).sequences()   
     bucket_batch_sampler = BucketBatchSampler(ind_n_len, minibatch_size) # <-- does not store X
-    if platform.system() is 'Windows':
-        num_workers = 0
-    else:
-        num_workers = 8
+    #if platform.system() is 'Windows':
+    print('taking the number of workers equal to the number of cpus for data loading. ')
+    num_workers =multiprocessing.cpu_count()
+    #else:
+    #    num_workers = 8
     return torch.utils.data.DataLoader(H5PytorchDataset(filename), batch_size=1, batch_sampler= bucket_batch_sampler,
                                        shuffle=False, num_workers=num_workers, 
                                        collate_fn=H5PytorchDataset.sort_samples_in_minibatch,
