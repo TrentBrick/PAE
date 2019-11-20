@@ -1,4 +1,4 @@
-Final Project for Dr. Bruce Donald's "Computational Biology Seminar" at Duke University 2019. This was my first foray into studying proteins including modern challenges in folding and design. Final presentation here: https://docs.google.com/presentation/d/1Czgu30rfdBjQuM1SJKkvwG54b05p5bEazRBvFeRRrJI/edit?usp=sharing and PDF write up with citations and the idea in more depth: [Final Project PDF Writeup](Trenton Bricken Protein Autoencoder.pdf)
+Final Project for Dr. Bruce Donald's "Computational Biology Seminar" at Duke University 2019. This was my first foray into studying proteins including modern challenges in folding and design. Final presentation here: https://docs.google.com/presentation/d/1Czgu30rfdBjQuM1SJKkvwG54b05p5bEazRBvFeRRrJI/edit?usp=sharing and PDF write up with citations and the idea in more depth: [Final Project PDF Writeup](Trenton-Bricken-Protein-Autoencoder.pdf)
 
 Simultaneously reading through Ian Goodfellow's Deep Learning textbook, I wanted to apply what I was learning to try and do protein design. 
 
